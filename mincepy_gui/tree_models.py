@@ -4,11 +4,11 @@ import operator
 import typing
 from typing import Sequence, Mapping
 
-import mincepy
 import PySide2
 from PySide2 import QtCore
 from PySide2.QtCore import QModelIndex, Qt, Signal, Slot
 
+import mincepy
 from . import common
 from . import utils
 
@@ -110,13 +110,13 @@ class LazyMappingItem(BaseTreeItem):
 
 
 class RecordTree(QtCore.QAbstractItemModel):
-    COLUMN_HEDARES = 'Property', 'Type', 'Value'
+    COLUMN_HEADERS = 'Property', 'Type', 'Value'
 
     object_activated = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._root_item = DataTreeItem(self.COLUMN_HEDARES)
+        self._root_item = DataTreeItem(self.COLUMN_HEADERS)
         self._data_record = None  # type: typing.Optional[mincepy.DataRecord]
 
     @Slot(QModelIndex)
@@ -125,7 +125,10 @@ class RecordTree(QtCore.QAbstractItemModel):
         if obj:
             self.object_activated.emit(obj)
 
-    def index(self, row: int, column: int, parent: PySide2.QtCore.QModelIndex = ...) -> \
+    def index(self,
+              row: int,
+              column: int,
+              parent: PySide2.QtCore.QModelIndex = QModelIndex()) -> \
             PySide2.QtCore.QModelIndex:
         if not self.hasIndex(row, column, parent):
             return QModelIndex()
@@ -201,13 +204,13 @@ class RecordTree(QtCore.QAbstractItemModel):
         self._data_record = record
         # Now build the three
         if self._data_record is None:
-            self._root_item = DataTreeItem(self.COLUMN_HEDARES)
+            self._root_item = DataTreeItem(self.COLUMN_HEADERS)
         else:
             tree_dict = {'record': record._asdict()}
             if obj is not None:
                 tree_dict['obj'] = obj
 
-            self._root_item = LazyMappingItem(self.COLUMN_HEDARES, tree_dict, self._item_builder,
+            self._root_item = LazyMappingItem(self.COLUMN_HEADERS, tree_dict, self._item_builder,
                                               len(tree_dict))
         self.endResetModel()
 
