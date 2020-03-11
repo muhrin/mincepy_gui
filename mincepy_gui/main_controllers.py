@@ -21,7 +21,7 @@ class MainController(QObject):
         super().__init__(window)
         self._executor = ThreadPoolExecutor()
         self._tasks = []
-        self._action_manager = extend.ActionerManager()
+        self._action_manager = extend.ActionManager()
 
         self._load_plugins()
 
@@ -87,10 +87,13 @@ class MainController(QObject):
         entries_table_controller.context_menu_requested.connect(
             action_controller.trigger_context_menu)
 
-        controllers.EntryDetailsController(self._entries_table,
-                                           window.entries_table,
-                                           self._entry_details,
-                                           parent=self)
+        entry_details_controller = controllers.EntryDetailsController(self._entries_table,
+                                                                      window.entries_table,
+                                                                      window.entry_details,
+                                                                      self._entry_details,
+                                                                      parent=self)
+        entry_details_controller.context_menu_requested.connect(
+            action_controller.trigger_context_menu)
 
         types_controller.TypeFilterController(self._query_model, window.type_filter, parent=self)
 

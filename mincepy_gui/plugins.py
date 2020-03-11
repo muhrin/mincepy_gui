@@ -1,6 +1,8 @@
 from abc import ABCMeta, abstractmethod
 from typing import Iterable
 
+__all__ = ('Actioner',)
+
 
 class Actioner(metaclass=ABCMeta):
 

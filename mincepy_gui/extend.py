@@ -30,7 +30,7 @@ def get_actioners() -> Sequence:
     return all_types
 
 
-class ActionerManager:
+class ActionManager:
     """Group all actioners together and load plugins"""
 
     def __init__(self):

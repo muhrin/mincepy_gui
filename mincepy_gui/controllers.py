@@ -112,15 +112,23 @@ class QueryController(QObject):
 class EntryDetailsController(QObject):
     """Controller that set what is displayed in the details tree"""
 
+    context_menu_requested = Signal(dict, QPoint)
+
     def __init__(self,
                  entries_table: models.EntriesTable,
                  entries_table_view: QtWidgets.QTableView,
+                 entry_details_view: QtWidgets.QTreeWidget,
                  entry_details: tree_models.RecordTree = None,
                  parent=None):
         super().__init__(parent)
         self._entries_table = entries_table
         self._entries_table_view = entries_table_view
+        self._entry_details_view = entry_details_view
         self._entry_details = entry_details or tree_models.RecordTree(self)
+
+        # Configure the view
+        self._entry_details_view.setContextMenuPolicy(QtGui.Qt.CustomContextMenu)
+        self._entry_details_view.customContextMenuRequested.connect(self._entry_context_menu)
 
         def handle_row_changed(current, _previous):
             record = self._entries_table.get_record(current.row())
@@ -128,6 +136,23 @@ class EntryDetailsController(QObject):
             self._entry_details.set_record(record, snapshot)
 
         self._entries_table_view.selectionModel().currentRowChanged.connect(handle_row_changed)
+
+    @Slot(QPoint)
+    def _entry_context_menu(self, point: QPoint):
+        objects = self._get_currently_selected_objects()
+        if objects:
+            groups = {}
+            groups['Objects'] = objects if len(objects) > 1 else objects[0]
+            self.context_menu_requested.emit(groups, self._entry_details_view.mapToGlobal(point))
+
+    def _get_currently_selected_objects(self):
+        # We just want the value, we don't care about the other columns
+        value_col = tree_models.RecordTree.COLUMN_HEADERS.index('Value')
+        selected = tuple(
+            index for index in self._entry_details_view.selectionModel().selectedIndexes()
+            if index.column() == value_col)
+
+        return tuple(self._entry_details.data(index, role=common.DataRole) for index in selected)
 
 
 class EntriesTableController(QObject):

@@ -14,14 +14,16 @@ class TextActioner(plugins.Actioner):
     def name(self):
         return "text-actioner"
 
-    def probe(self, obj, context) -> Iterable[str]:
+    def probe(self, obj, context) -> Optional[Iterable[str]]:
         if isinstance(obj, mincepy.File):
             return ('View File',)
 
-    def do(self, action: str, obj, context: dict):
+        return None
+
+    def do(self, action: str, obj: mincepy.File, context: dict):
         if action == 'View File':
             folder = Path(tempfile.mkdtemp())
-            obj.to_dict(folder)
+            obj.to_disk(folder)
             utils.open_file(folder / obj.filename)
 
 

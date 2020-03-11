@@ -8,7 +8,7 @@ from . import extend
 class ActionController(QObject):
 
     def __init__(self,
-                 action_manager: extend.ActionerManager,
+                 action_manager: extend.ActionManager,
                  context=None,
                  executor=common.default_executor,
                  parent=None):

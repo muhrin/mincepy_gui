@@ -395,6 +395,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
         return ()
 
     def _get_value(self, row: int, column: int) -> typing.Any:
+        """Get a value for a given row and column index"""
         column_name = self._columns[column]
         if not column_name:
             return UNSET
