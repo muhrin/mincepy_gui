@@ -1,2 +1,2 @@
-MincepyGui
-==========
+MincePy GUI
+===========

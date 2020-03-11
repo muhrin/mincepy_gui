@@ -27,6 +27,7 @@ setup(name='mincepy-gui',
       install_requires=[
           'mincepy>=0.9.11',
           'PySide2',
+          'pytray',
       ],
       extras_require={
           'gui': [],

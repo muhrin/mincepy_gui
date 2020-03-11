@@ -1,5 +1,5 @@
 
-PACKAGE="mincepy"
+PACKAGE="mincepy_gui"
 REMOTE="muhrin"
 VERSION_FILE=${PACKAGE}/version.py
 
