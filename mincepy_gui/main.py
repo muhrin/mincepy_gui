@@ -7,13 +7,14 @@ from PySide2.QtUiTools import QUiLoader
 from PySide2 import QtWidgets
 from PySide2.QtCore import QFile
 
-from . import main_controller
+from . import main_controllers
 
-RESOURCES = Path('../res/')
+__all__ = ('start',)
 
-if __name__ == "__main__":
-    # pylint: disable=invalid-name
+RESOURCES = Path(__file__).parent / 'res'
 
+
+def start():
     app = QtWidgets.QApplication(sys.argv)
 
     ui_file = QFile(str(RESOURCES / "mainwindow.ui"))
@@ -23,8 +24,11 @@ if __name__ == "__main__":
     window = loader.load(ui_file)
     ui_file.close()
 
-    main_controller = main_controller.MainController(window)
-
+    main_controllers.MainController(window)
     window.show()
 
     sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    start()

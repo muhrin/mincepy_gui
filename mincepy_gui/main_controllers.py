@@ -1,13 +1,18 @@
 from concurrent.futures import ThreadPoolExecutor, Future
 from functools import partial
+import logging
 
 from PySide2 import QtWidgets
 from PySide2.QtCore import QObject, Qt, Slot, Signal
 
+from . import action_controllers
 from . import controllers
+from . import extend
 from . import models
 from . import tree_models
 from . import types_controller
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class MainController(QObject):
@@ -16,6 +21,9 @@ class MainController(QObject):
         super().__init__(window)
         self._executor = ThreadPoolExecutor()
         self._tasks = []
+        self._action_manager = extend.ActionerManager()
+
+        self._load_plugins()
 
         # Models
         self._create_models()
@@ -29,6 +37,11 @@ class MainController(QObject):
         self._task_done_signal.connect(self._task_done)
 
         self._status_bar.showMessage('Ready')
+
+    def _load_plugins(self):
+        logger.info("Starting loading plugins")
+        self._action_manager.load_plugins()
+        logger.info("Finished loading plugins")
 
     def _create_models(self):
         self._db_model = models.DbModel()
@@ -63,10 +76,22 @@ class MainController(QObject):
                                        executor=self._execute,
                                        parent=self)
         controllers.QueryController(self._query_model, window.query_line, parent=self)
+
+        action_controller = action_controllers.ActionController(self._action_manager,
+                                                                executor=self._executor,
+                                                                parent=self)
+
+        entries_table_controller = controllers.EntriesTableController(self._entries_table,
+                                                                      window.entries_table,
+                                                                      parent=self)
+        entries_table_controller.context_menu_requested.connect(
+            action_controller.trigger_context_menu)
+
         controllers.EntryDetailsController(self._entries_table,
                                            window.entries_table,
                                            self._entry_details,
                                            parent=self)
+
         types_controller.TypeFilterController(self._query_model, window.type_filter, parent=self)
 
     def _execute(self, func, msg=None, blocking=False) -> Future:

@@ -1,6 +1,9 @@
 import datetime
 import inspect
 import json
+import os
+import sys
+import subprocess
 import typing
 import uuid
 
@@ -77,3 +80,12 @@ def pretty_format(value) -> str:
         return value.strftime(fmt)
 
     return str(value)
+
+
+def open_file(filename):
+    """Open a generic file on in a semi-portable way"""
+    if sys.platform == "win32":
+        os.startfile(filename)
+    else:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.call([opener, filename])

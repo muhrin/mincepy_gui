@@ -1,0 +1,2 @@
+include mincepy_gui/res/*
+include README.rst
