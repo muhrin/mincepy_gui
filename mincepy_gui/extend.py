@@ -54,3 +54,16 @@ class ActionManager:
                     actions.append((action, actioner))
 
         return actions
+
+    def get_actioners(self, type=None, name: str = None) -> Sequence[plugins.Actioner]:  # pylint: disable=redefined-builtin
+        actioners = []
+        for actioner in self._actioners:
+            # Filter by all the criteria
+            if type is not None and not isinstance(actioner, type):
+                continue
+            if name is not None and getattr(actioner, 'name', None) != name:
+                continue
+
+            actioners.append(actioner)
+
+        return actioners

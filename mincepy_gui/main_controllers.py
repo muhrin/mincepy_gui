@@ -20,12 +20,14 @@ class MainController(QObject):
 
     def __init__(self, window):
         super().__init__(window)
+        self._window = window
         self._executor = ThreadPoolExecutor()
         self._tasks = []
         self._action_manager = extend.ActionManager()
         self._action_context = {
             action_controllers.CONTEXT_CLIPBOARD: QtGui.QGuiApplication.clipboard()
         }
+        self._copier = None
         self._load_plugins()
 
         # Models
@@ -37,14 +39,38 @@ class MainController(QObject):
         # Controllers
         self._create_controllers(window)
 
+        self._init_shortcuts()
         self._task_done_signal.connect(self._task_done)
-
         self._status_bar.showMessage('Ready')
 
     def _load_plugins(self):
         logger.info("Starting loading plugins")
         self._action_manager.load_plugins()
+        actioners = self._action_manager.get_actioners(name='copy-actioner')
+        if actioners:
+            # Somewhat arbitrarily just use the last one
+            self._copier = partial(actioners[-1].do, 'copy', context=self._action_context)
+
         logger.info("Finished loading plugins")
+
+    def _init_shortcuts(self):
+        ctrl_c = QtGui.QKeySequence("Ctrl+C")
+
+        QtWidgets.QShortcut(ctrl_c, self._window.splitter, self._copy)
+        # QtWidgets.QShortcut(ctrl_c, self._window.entries_table,
+        #                     lambda: self._entries_table_controller.handle_copy(self._copier))
+        # QtWidgets.QShortcut(ctrl_c, self._window.entry_details,
+        #                     lambda: self._entry_details_controller.handle_copy(self._copier))
+
+    @Slot()
+    def _copy(self):
+        if not self._copier:
+            return
+
+        if self._window.entries_table.hasFocus():
+            self._entries_table_controller.handle_copy(self._copier)
+        elif self._window.entry_details.hasFocus():
+            self._entry_details_controller.handle_copy(self._copier)
 
     def _create_models(self):
         self._db_model = models.DbModel()
@@ -85,18 +111,20 @@ class MainController(QObject):
                                                                 executor=self._executor,
                                                                 parent=self)
 
-        entries_table_controller = controllers.EntriesTableController(self._entries_table,
-                                                                      window.entries_table,
-                                                                      parent=self)
-        entries_table_controller.context_menu_requested.connect(
+        # Entries table
+        self._entries_table_controller = controllers.EntriesTableController(self._entries_table,
+                                                                            window.entries_table,
+                                                                            parent=self)
+        self._entries_table_controller.context_menu_requested.connect(
             action_controller.trigger_context_menu)
 
-        entry_details_controller = controllers.EntryDetailsController(self._entries_table,
-                                                                      window.entries_table,
-                                                                      window.entry_details,
-                                                                      self._entry_details,
-                                                                      parent=self)
-        entry_details_controller.context_menu_requested.connect(
+        # Entry details
+        self._entry_details_controller = controllers.EntryDetailsController(self._entries_table,
+                                                                            window.entries_table,
+                                                                            window.entry_details,
+                                                                            self._entry_details,
+                                                                            parent=self)
+        self._entry_details_controller.context_menu_requested.connect(
             action_controller.trigger_context_menu)
 
         types_controller.TypeFilterController(self._query_model, window.type_filter, parent=self)
@@ -133,4 +161,4 @@ class MainController(QObject):
             if new_msg is not None:
                 self._status_bar.showMessage(new_msg, 1000)
         except Exception as exc:  # pylint: disable=broad-except
-            QtWidgets.QErrorMessage(self).showMessage(str(exc))
+            QtWidgets.QErrorMessage(self._window).showMessage(str(exc))

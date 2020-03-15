@@ -9,7 +9,6 @@ from . import common
 from . import models
 from . import tree_models
 from . import utils
-from .action_controllers import ActionController
 
 
 class DatabaseController(QObject):
@@ -138,6 +137,14 @@ class EntryDetailsController(QObject):
 
         self._entries_table_view.selectionModel().currentRowChanged.connect(handle_row_changed)
 
+    def handle_copy(self, copier: callable):
+        objects = self._get_currently_selected_objects()
+        if not objects:
+            return
+
+        objects = objects if len(objects) > 1 else objects[0]
+        copier(objects)
+
     @Slot(QPoint)
     def _entry_context_menu(self, point: QPoint):
         objects = self._get_currently_selected_objects()
@@ -158,6 +165,8 @@ class EntryDetailsController(QObject):
 
 class EntriesTableController(QObject):
     """Controller for the table showing database entries"""
+    DATA_RECORDS = 'Data Record(s)'
+    VALUES = 'Values(s)'
 
     context_menu_requested = Signal(dict, QPoint)
 
@@ -165,6 +174,11 @@ class EntriesTableController(QObject):
                  entries_table: models.EntriesTable,
                  entries_table_view: QtWidgets.QTableView,
                  parent=None):
+        """
+        :param entries_table: the entries table model
+        :param entries_table_view: the entries table view
+        :param parent: the parent widget
+        """
         super().__init__(parent)
         self._entries_table = entries_table
         self._entries_table_view = entries_table_view
@@ -173,8 +187,7 @@ class EntriesTableController(QObject):
         self._entries_table_view.setContextMenuPolicy(QtGui.Qt.CustomContextMenu)
         self._entries_table_view.customContextMenuRequested.connect(self._entries_context_menu)
 
-    @Slot(QPoint)
-    def _entries_context_menu(self, point: QPoint):
+    def get_selected(self) -> dict:
         groups = {}
         selected = self._entries_table_view.selectionModel().selectedIndexes()
 
@@ -183,10 +196,27 @@ class EntriesTableController(QObject):
         data_records = tuple(self._entries_table.get_record(row) for row in rows)
 
         if data_records:
-            groups['Data Record(s)'] = data_records if len(data_records) > 1 else data_records[0]
+            groups[self.DATA_RECORDS] = data_records if len(data_records) > 1 else data_records[0]
 
         objects = tuple(self._entries_table.data(index, role=common.DataRole) for index in selected)
         if objects:
-            groups['Object(s)'] = objects if len(objects) > 1 else objects[0]
+            groups[self.VALUES] = objects if len(objects) > 1 else objects[0]
 
+        return groups
+
+    def handle_copy(self, copier: callable):
+        if not copier:
+            return
+
+        selected = self._entries_table_view.selectionModel().selectedIndexes()
+        if selected:
+            rows = {index.row() for index in selected}
+            data_records = tuple(self._entries_table.get_record(row) for row in rows)
+            # Convert to scalar if needed
+            data_records = data_records if len(data_records) > 1 else data_records[0]
+            copier(data_records)
+
+    @Slot(QPoint)
+    def _entries_context_menu(self, point: QPoint):
+        groups = self.get_selected()
         self.context_menu_requested.emit(groups, self._entries_table_view.mapToGlobal(point))

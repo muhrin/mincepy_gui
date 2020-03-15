@@ -48,6 +48,30 @@ class DataRecordActioner(plugins.Actioner):
         pass
 
 
+class CopyActioner(plugins.Actioner):
+    """Knows how to copy things to the clipboard"""
+
+    @property
+    def name(self):
+        return "copy-actioner"
+
+    def probe(self, obj, context: dict) -> Optional[Iterable[str]]:
+        actions = []
+        if isinstance(obj, mincepy.DataRecord):
+            actions.append("Copy Object ID")
+        elif hasattr(obj, '__str__'):
+            actions.append("Copy")
+
+        return actions
+
+    def do(self, action, obj, context: dict):
+        clipboard = context.get('clipboard', None)
+        if isinstance(obj, mincepy.DataRecord):
+            clipboard.setText(str(obj.obj_id))
+        else:
+            clipboard.setText(str(obj))
+
+
 class TestActioner(plugins.Actioner):
     enabled = False
     actions = []
@@ -56,7 +80,7 @@ class TestActioner(plugins.Actioner):
     def name(self):
         return "test-actioner"
 
-    def probe(self, obj, context: dict) -> Iterable[str]:
+    def probe(self, obj, context: dict) -> Optional[Iterable[str]]:
         if self.enabled:
             return self.actions
 
@@ -66,4 +90,4 @@ class TestActioner(plugins.Actioner):
 
 
 def get_actioners():
-    return (TextActioner(), DataRecordActioner(), TestActioner())
+    return (CopyActioner(), TextActioner(), DataRecordActioner(), TestActioner())
