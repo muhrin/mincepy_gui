@@ -1,3 +1,3 @@
 # pylint: disable=unused-import
 
-from mincepy.testing import historian
+from mincepy.testing import historian, mongodb_archive

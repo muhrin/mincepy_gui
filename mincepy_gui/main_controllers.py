@@ -3,6 +3,7 @@ from functools import partial
 import logging
 
 from PySide2 import QtWidgets
+from PySide2 import QtGui
 from PySide2.QtCore import QObject, Qt, Slot, Signal
 
 from . import action_controllers
@@ -22,7 +23,9 @@ class MainController(QObject):
         self._executor = ThreadPoolExecutor()
         self._tasks = []
         self._action_manager = extend.ActionManager()
-
+        self._action_context = {
+            action_controllers.CONTEXT_CLIPBOARD: QtGui.QGuiApplication.clipboard()
+        }
         self._load_plugins()
 
         # Models
@@ -78,6 +81,7 @@ class MainController(QObject):
         controllers.QueryController(self._query_model, window.query_line, parent=self)
 
         action_controller = action_controllers.ActionController(self._action_manager,
+                                                                context=self._action_context,
                                                                 executor=self._executor,
                                                                 parent=self)
 

@@ -5,6 +5,8 @@ import stevedore
 
 from . import plugins
 
+__all__ = ('ActionManager',)
+
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 ACTIONERS_NAMESPACE = 'mincepy_gui.actioners'

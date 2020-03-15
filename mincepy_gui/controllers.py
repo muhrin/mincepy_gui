@@ -9,6 +9,7 @@ from . import common
 from . import models
 from . import tree_models
 from . import utils
+from .action_controllers import ActionController
 
 
 class DatabaseController(QObject):
@@ -182,10 +183,10 @@ class EntriesTableController(QObject):
         data_records = tuple(self._entries_table.get_record(row) for row in rows)
 
         if data_records:
-            groups['Data Records'] = data_records if len(data_records) > 1 else data_records[0]
+            groups['Data Record(s)'] = data_records if len(data_records) > 1 else data_records[0]
 
         objects = tuple(self._entries_table.data(index, role=common.DataRole) for index in selected)
         if objects:
-            groups['Objects'] = objects if len(objects) > 1 else objects[0]
+            groups['Object(s)'] = objects if len(objects) > 1 else objects[0]
 
         self.context_menu_requested.emit(groups, self._entries_table_view.mapToGlobal(point))

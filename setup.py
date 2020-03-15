@@ -11,7 +11,7 @@ with open('mincepy_gui/version.py') as f:
 setup(
     name='mincepy-gui',
     version=about['__version__'],
-    description="Object storage with versioning made simple",
+    description="GUI for navigating your mincepy database visually!",
     long_description=open('README.rst').read(),
     url='https://github.com/muhrin/mincepy_gui.git',
     author='Martin Uhrin',
@@ -37,6 +37,7 @@ setup(
             'pip',
             'pytest>4',
             'pytest-cov',
+            'pytest-qt',
             'pre-commit',
             'yapf',
             'prospector',

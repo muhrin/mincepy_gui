@@ -36,10 +36,11 @@ class DataRecordActioner(plugins.Actioner):
 
     def probe(self, obj, context) -> Optional[Iterable[str]]:
         if isinstance(obj, mincepy.DataRecord):
-            return ("Delete Record",)
+            return ("Delete",)
         if isinstance(obj, Iterable) \
                 and all(map(lambda val: isinstance(val, mincepy.DataRecord), obj)):
-            return ("Delete Records",)
+            count = len(tuple(obj))
+            return ("Delete {}".format(count),)
 
         return None
 
@@ -47,5 +48,22 @@ class DataRecordActioner(plugins.Actioner):
         pass
 
 
+class TestActioner(plugins.Actioner):
+    enabled = False
+    actions = []
+
+    @property
+    def name(self):
+        return "test-actioner"
+
+    def probe(self, obj, context: dict) -> Iterable[str]:
+        if self.enabled:
+            return self.actions
+
+    def do(self, action, obj, context: dict):
+        print("Action '{}' called with object: \n'{}' and context \n'{}'".format(
+            action, obj, context))
+
+
 def get_actioners():
-    return (TextActioner(), DataRecordActioner())
+    return (TextActioner(), DataRecordActioner(), TestActioner())
