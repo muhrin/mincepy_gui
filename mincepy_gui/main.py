@@ -14,7 +14,7 @@ __all__ = ('start',)
 RESOURCES = Path(__file__).parent / 'res'
 
 
-def start():
+def start(default_uri=''):
     if hasattr(Qt, 'AA_ShareOpenGLContexts'):
         QtWidgets.QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
 
@@ -27,7 +27,7 @@ def start():
     window = loader.load(ui_file)
     ui_file.close()
 
-    main_controllers.MainController(window)
+    main_controllers.MainController(window, default_uri)
     window.show()
 
     sys.exit(app.exec_())

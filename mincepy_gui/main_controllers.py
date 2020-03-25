@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 class MainController(QObject):
 
-    def __init__(self, window):
+    def __init__(self, window, default_uri=''):
         super().__init__(window)
         self._window = window
+        self._default_uri = default_uri
         self._executor = ThreadPoolExecutor()
         self._tasks = []
         self._action_manager = extend.ActionManager()
@@ -57,10 +58,6 @@ class MainController(QObject):
         ctrl_c = QtGui.QKeySequence("Ctrl+C")
 
         QtWidgets.QShortcut(ctrl_c, self._window.splitter, self._copy)
-        # QtWidgets.QShortcut(ctrl_c, self._window.entries_table,
-        #                     lambda: self._entries_table_controller.handle_copy(self._copier))
-        # QtWidgets.QShortcut(ctrl_c, self._window.entry_details,
-        #                     lambda: self._entry_details_controller.handle_copy(self._copier))
 
     @Slot()
     def _copy(self):
@@ -81,11 +78,7 @@ class MainController(QObject):
     def _init_views(self, window):
         window.entries_table.setSortingEnabled(True)
         window.entries_table.setModel(self._entries_table)
-        # entries_view.doubleClicked.connect(entries_table.activate_entry)
-
-        # entry_details.object_activated.connect(self._activate_object)
         window.entry_details.setModel(self._entry_details)
-        # record_tree_view.doubleClicked.connect(entry_details_view.activate_entry)
 
         self._init_display_as_class(window)
         window.refresh_button.clicked.connect(self._entries_table.refresh)
@@ -102,6 +95,7 @@ class MainController(QObject):
         controllers.DatabaseController(self._db_model,
                                        window.uri_line,
                                        window.connect_button,
+                                       default_uri=self._default_uri,
                                        executor=self._execute,
                                        parent=self)
         controllers.QueryController(self._query_model, window.query_line, parent=self)
