@@ -17,6 +17,8 @@ class BaseTreeItem(metaclass=ABCMeta):
 
     def __init__(self, column_data: Sequence, parent=None):
         self._data = column_data
+        self._strings = tuple(
+            utils.pretty_format(datum, single_line=True, max_length=300) for datum in column_data)
         self._parent = parent
 
     def data(self, column: int):
@@ -25,6 +27,13 @@ class BaseTreeItem(metaclass=ABCMeta):
             return None
 
         return self._data[column]
+
+    def string(self, column: int):
+        """Get the string representation for the given column"""
+        if column < 0 or column >= self.column_count():
+            return None
+
+        return self._strings[column]
 
     def row(self) -> int:
         """Get the row of this item within its parent"""
@@ -175,9 +184,8 @@ class RecordTree(QtCore.QAbstractItemModel):
             return None
 
         if role == Qt.DisplayRole:
-            item = index.internalPointer()
-            value = item.data(index.column())
-            return str(value)
+            item = index.internalPointer()  # type: BaseTreeItem
+            return item.string(index.column())
         if role == common.DataRole:
             return index.internalPointer().data(index.column())
 

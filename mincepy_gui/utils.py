@@ -2,6 +2,7 @@ import datetime
 import inspect
 import json
 import os
+import pprint
 import sys
 import subprocess
 import typing
@@ -68,7 +69,7 @@ def pretty_type_string(obj_type: typing.Type) -> str:
     return type_str
 
 
-def pretty_format(value) -> str:
+def pretty_format(value, single_line=False, max_length=None) -> str:
     if isinstance(value, type):
         return pretty_type_string(value)
     if isinstance(value, datetime.datetime):
@@ -79,7 +80,16 @@ def pretty_format(value) -> str:
 
         return value.strftime(fmt)
 
-    return str(value)
+    if isinstance(value, str):
+        string = value
+    else:
+        string = pprint.pformat(value, depth=2, indent=0, compact=True)
+    if single_line:
+        string = string.replace('\n', '')
+    if max_length and len(string) > max_length:
+        string = string[:max_length - 3] + "..."
+
+    return string
 
 
 def open_file(filename):
