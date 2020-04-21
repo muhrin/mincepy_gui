@@ -8,6 +8,7 @@ import subprocess
 import typing
 import uuid
 
+import pytray.pretty
 from pytray import tree
 import bson
 
@@ -63,9 +64,11 @@ class UUIDDecoder(json.JSONDecoder):
 
 def pretty_type_string(obj_type: typing.Type) -> str:
     """Given an type will return a simple type string"""
-    type_str = str(obj_type)
-    if type_str.startswith('<class '):
-        return type_str[8:-2]
+    type_str = pytray.pretty.type_string(obj_type)
+    parts = type_str.split('.')
+    if len(parts) > 2:
+        return "|".join([parts[0], parts[-1]])
+
     return type_str
 
 

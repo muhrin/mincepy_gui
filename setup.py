@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup
 
-__author__ = "Martin Uhrin and Sonia Collaud"
-__license__ = "GPLv3 and MIT, see LICENSE file"
+__author__ = "Martin Uhrin"
+__license__ = "GPLv3 and MIT"
+__contributors__ = "Sonia Collaud"
 
 about = {}
 with open('mincepy_gui/version.py') as f:
@@ -26,9 +27,9 @@ setup(
     ],
     keywords='database schemaless nosql object-store gui',
     install_requires=[
-        'mincepy>=0.9.11',
+        'mincepy>=0.12.0',
         'PySide2',
-        'pytray',
+        'pytray>=0.2.2, <0.3.0',
         'stevedore',
     ],
     extras_require={

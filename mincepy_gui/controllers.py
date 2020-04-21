@@ -16,6 +16,7 @@ class DatabaseController(QObject):
 
     _historian_created = Signal(mincepy.Historian)
 
+    # pylint: disable=too-many-arguments
     def __init__(self,
                  db_model: models.DbModel,
                  uri_line: QtWidgets.QLineEdit,
@@ -41,7 +42,7 @@ class DatabaseController(QObject):
 
     def _connect(self, uri):
         try:
-            historian = mincepy.historian(uri)
+            historian = mincepy.create_historian(uri)
         except Exception as exc:
             err_msg = "Error creating historian with uri '{}':\n{}".format(uri, exc)
             raise RuntimeError(err_msg)

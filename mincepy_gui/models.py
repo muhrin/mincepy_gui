@@ -203,7 +203,7 @@ class DataRecordQueryModel(QtCore.QAbstractTableModel):
 
         total = 0
         batch = []
-        for result in self._db_model.historian.find(**query, as_objects=False):
+        for result in self._db_model.historian.find_records(**query):
             batch.append(result)
             if len(batch) == batch_size:
                 self._new_results.emit(batch)
@@ -431,7 +431,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
 
     def _get_value_string(self, row: int, column: int) -> str:
         value = self._get_value(row, column)
-        return utils.pretty_format(value)
+        return utils.pretty_format(value, single_line=True, max_length=100)
 
     def _query_rows_inserted(self, _parent: QModelIndex, first: int, last: int):
         """Called when there are new entries inserted into the entries table"""

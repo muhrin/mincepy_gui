@@ -1,10 +1,10 @@
-import mincepy
 from PySide2.QtCore import QObject
 from PySide2.QtWidgets import QComboBox, QCompleter
 from PySide2 import QtWidgets
 
 from . import common
 from . import models
+from . import utils
 
 
 class TypeFilterController(QObject):
@@ -47,7 +47,7 @@ class TypeFilterController(QObject):
         self._executor(self._gather_types, "Gathering types", blocking=False)
 
     def _gather_types(self):
-        results = self._historian.get_archive().find()
+        results = self._historian.archive.find()
         self._types = [None]
         self._types.extend(list(set(result.type_id for result in results)))
 
@@ -65,6 +65,6 @@ class TypeFilterController(QObject):
             except TypeError:
                 type_names.append(str(type_id))
             else:
-                type_names.append(mincepy.analysis.get_type_name(helper.TYPE))
+                type_names.append(utils.pretty_type_string(helper.TYPE))
 
         return type_names
