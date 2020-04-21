@@ -6,6 +6,7 @@ import sys
 from PySide2.QtUiTools import QUiLoader
 from PySide2 import QtWidgets
 from PySide2.QtCore import QFile, Qt
+from PySide2 import QtGui
 
 from . import main_controllers
 
@@ -26,6 +27,9 @@ def start(default_uri=''):
     loader = QUiLoader()
     window = loader.load(ui_file)
     ui_file.close()
+
+    # Add the icon
+    window.setWindowIcon(QtGui.QIcon(str(RESOURCES / "logo.svg")))
 
     main_controllers.MainController(window, default_uri)
     window.show()
