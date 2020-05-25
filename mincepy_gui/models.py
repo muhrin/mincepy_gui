@@ -52,23 +52,25 @@ class DataRecordQueryModel(QtCore.QAbstractTableModel):
     sort_changed = Signal(dict)
     query_changed = Signal(dict)
 
-    NE_DELETED = {'$ne': mincepy.DELETED}
-
     def __init__(self, db_model: DbModel, executor=common.default_executor, parent=None):
         super().__init__(parent)
         self._db_model = db_model
-        self._query = {'state': self.NE_DELETED}
+        self._query = {}
         self._results = None
         self._sort = None
         self._type_restriction = None
         self._column_names = mincepy.DataRecord._fields
         self._update_future = None
+        self._init()
 
         self._executor = executor
         self._new_results.connect(self._inject_results)
 
         # If the historian changes then we get invalidated
         self._db_model.historian_changed.connect(lambda hist: self._invalidate_results())
+
+    def _init(self):
+        self.set_show_current(True)
 
     @property
     def db_model(self):
@@ -106,40 +108,26 @@ class DataRecordQueryModel(QtCore.QAbstractTableModel):
     def get_type_restriction(self):
         return self.get_query().get('obj_type', None)
 
-    def set_show_deleted(self, value):
-        if self.get_show_deleted() == value:
+    def set_show_current(self, show: bool):
+        """Set the query such that it only show current objects i.e. the latest versions of objects
+        that have not been deleted"""
+        if self.get_show_current() == show:
             return
 
-        no_deleted = {'state': mincepy.DELETED}
-
-        query = self.get_query()
-        if value:
-            if 'state' in query:
-                state = query['state']
-                if isinstance(state, list):
-                    if no_deleted in state:
-                        state.remove(no_deleted)
-                        self.set_query(query)
-                else:
-                    if state == no_deleted:
-                        query.pop('state')
-                        self.set_query(query)
+        if show:
+            self._query['version'] = -1
         else:
-            pass
+            self._query.pop('version')
 
-    def get_show_deleted(self) -> bool:
-        no_deleted = {'$ne': mincepy.DELETED}
-        query = self.get_query()
-        if 'state' in query:
-            state = query['state']
-            if isinstance(state, list):
-                return no_deleted in state
+        self.query_changed.emit(self._query)
 
-            return no_deleted == state
-
-        return False
+    def get_show_current(self) -> bool:
+        """Get whether we are only showing current objects i.e. the latest version and not deleted
+        """
+        return self._query.get('version', None) == -1
 
     def set_sort(self, sort):
+        """Set the sort criterion"""
         if sort == self.get_sort():
             return
 
