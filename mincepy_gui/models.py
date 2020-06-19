@@ -248,7 +248,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
         return self.get_records()[row]
 
     def get_snapshot(self, row: int):
-        ref = self.get_record(row).get_reference()
+        ref = self.get_record(row).snapshot_id
         if ref not in self._snapshots_cache:
             historian = self._query_model.db_model.historian
             try:
@@ -362,7 +362,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
         if self._show_objects:
             historian = self._query_model.db_model.historian
             try:
-                return historian.load_snapshot(record.get_reference())
+                return historian.load_snapshot(record.snapshot_id)
             except TypeError:
                 pass  # Fall back to displaying the state
 
