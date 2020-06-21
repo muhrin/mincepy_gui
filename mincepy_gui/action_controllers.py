@@ -1,3 +1,4 @@
+import enum
 from functools import partial
 from typing import Mapping, Iterable
 
@@ -9,7 +10,17 @@ from . import extend
 
 __all__ = ('CONTEXT_CLIPBOARD',)
 
-CONTEXT_CLIPBOARD = 'clipboard'
+
+class Context(enum.Enum):
+
+    def _generate_next_value_(name, start, count, last_values):
+        return name
+
+    CLIPBOARD = enum.auto()
+    DATABASE = enum.auto()
+
+
+CONTEXT_CLIPBOARD = Context.CLIPBOARD
 
 
 class ActionController(QObject):

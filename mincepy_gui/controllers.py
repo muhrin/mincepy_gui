@@ -1,8 +1,7 @@
 from functools import partial
 import json
 
-from PySide2.QtCore import QObject, Signal, Slot, QPoint
-from PySide2 import QtWidgets, QtGui
+from PySide2 import QtWidgets, QtGui, QtCore
 import mincepy
 
 from . import common
@@ -11,10 +10,10 @@ from . import tree_models
 from . import utils
 
 
-class DatabaseController(QObject):
+class DatabaseController(QtCore.QObject):
     """Controls the connection to the database"""
 
-    _historian_created = Signal(mincepy.Historian)
+    _historian_created = QtCore.Signal(mincepy.Historian)
 
     # pylint: disable=too-many-arguments
     def __init__(self,
@@ -51,8 +50,11 @@ class DatabaseController(QObject):
 
         return "Connected to {}".format(uri)
 
+    def delete_objects(self, *obj_id):
+        self._db_model._delete(*obj_id)
 
-class QueryController(QObject):
+
+class QueryController(QtCore.QObject):
     """Controls the query that is being applied on the database"""
 
     def __init__(self,
@@ -110,10 +112,10 @@ class QueryController(QObject):
         return json.dumps(query, cls=utils.UUIDEncoder)
 
 
-class EntryDetailsController(QObject):
+class EntryDetailsController(QtCore.QObject):
     """Controller that set what is displayed in the details tree"""
 
-    context_menu_requested = Signal(dict, QPoint)
+    context_menu_requested = QtCore.Signal(dict, QtCore.QPoint)
 
     def __init__(self,
                  entries_table: models.EntriesTable,
@@ -146,8 +148,8 @@ class EntryDetailsController(QObject):
         objects = objects if len(objects) > 1 else objects[0]
         copier(objects)
 
-    @Slot(QPoint)
-    def _entry_context_menu(self, point: QPoint):
+    @QtCore.Slot(QtCore.QPoint)
+    def _entry_context_menu(self, point: QtCore.QPoint):
         objects = self._get_currently_selected_objects()
         if objects:
             groups = {}
@@ -164,12 +166,12 @@ class EntryDetailsController(QObject):
         return tuple(self._entry_details.data(index, role=common.DataRole) for index in selected)
 
 
-class EntriesTableController(QObject):
+class EntriesTableController(QtCore.QObject):
     """Controller for the table showing database entries"""
     DATA_RECORDS = 'Data Record(s)'
     VALUES = 'Values(s)'
 
-    context_menu_requested = Signal(dict, QPoint)
+    context_menu_requested = QtCore.Signal(dict, QtCore.QPoint)
 
     def __init__(self,
                  entries_table: models.EntriesTable,
@@ -217,7 +219,7 @@ class EntriesTableController(QObject):
             data_records = data_records if len(data_records) > 1 else data_records[0]
             copier(data_records)
 
-    @Slot(QPoint)
-    def _entries_context_menu(self, point: QPoint):
+    @QtCore.Slot(QtCore.QPoint)
+    def _entries_context_menu(self, point: QtCore.QPoint):
         groups = self.get_selected()
         self.context_menu_requested.emit(groups, self._entries_table_view.mapToGlobal(point))

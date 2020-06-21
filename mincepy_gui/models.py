@@ -1,7 +1,7 @@
 from collections import namedtuple
 from functools import partial
 import logging
-import typing
+from typing import Sequence, Any, Optional, Dict
 
 import PySide2
 from PySide2 import QtCore, QtGui
@@ -31,6 +31,7 @@ SnapshotRecord = namedtuple("SnapshotRecord", 'snapshot record')
 class DbModel(QObject):
     # Signals
     historian_changed = Signal(mincepy.Historian)
+    objects_deleted = Signal(list)
 
     def __init__(self):
         super().__init__()
@@ -44,6 +45,12 @@ class DbModel(QObject):
     def set_historian(self, historian):
         self._historian = historian
         self.historian_changed.emit(self._historian)
+
+    def _delete(self, *obj_id):
+        with self.historian.transaction():
+            for entry in obj_id:
+                self.historian.delete(entry)
+        self.objects_deleted.emit(obj_id)
 
 
 class DataRecordQueryModel(QtCore.QAbstractTableModel):
@@ -155,7 +162,7 @@ class DataRecordQueryModel(QtCore.QAbstractTableModel):
     def headerData(self,
                    section: int,
                    orientation: PySide2.QtCore.Qt.Orientation,
-                   role: int = ...) -> typing.Any:
+                   role: int = ...) -> Any:
         if role != Qt.DisplayRole:
             return None
 
@@ -164,7 +171,7 @@ class DataRecordQueryModel(QtCore.QAbstractTableModel):
 
         return str(self._results[section])
 
-    def data(self, index: PySide2.QtCore.QModelIndex, role: int = ...) -> typing.Any:
+    def data(self, index: PySide2.QtCore.QModelIndex, role: int = ...) -> Any:
         if role == Qt.DisplayRole:
             value = getattr(self._results[index.row()], self.column_names[index.column()])
             return str(value)
@@ -218,6 +225,7 @@ class DataRecordQueryModel(QtCore.QAbstractTableModel):
 
 
 class EntriesTable(QtCore.QAbstractTableModel):
+    """A model showing records from the database"""
     DEFAULT_COLUMNS = (mincepy.TYPE_ID, mincepy.CREATION_TIME, mincepy.SNAPSHOT_TIME,
                        mincepy.VERSION, mincepy.STATE)
 
@@ -232,7 +240,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
         self._columns = list(self.DEFAULT_COLUMNS)
         self._show_objects = True
 
-        self._snapshots_cache = {}
+        self._snapshots_cache = {}  # type: Dict[mincepy.SnapshotId, object]
 
     def get_records(self):
         return self._query_model.get_records()
@@ -241,7 +249,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
     def query_model(self):
         return self._query_model
 
-    def get_record(self, row) -> typing.Optional[mincepy.DataRecord]:
+    def get_record(self, row) -> Optional[mincepy.DataRecord]:
         if row < 0 or row >= self.rowCount():
             return None
 
@@ -298,7 +306,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
     def headerData(self,
                    section: int,
                    orientation: PySide2.QtCore.Qt.Orientation,
-                   role: int = ...) -> typing.Any:
+                   role: int = ...) -> Any:
         if role != Qt.DisplayRole:
             return None
 
@@ -312,7 +320,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
 
         return None
 
-    def data(self, index: PySide2.QtCore.QModelIndex, role: int = ...) -> typing.Any:
+    def data(self, index: PySide2.QtCore.QModelIndex, role: int = ...) -> Any:
         column_name = self._columns[index.column()]
         if role == common.DataRole:
             return self._get_value(index.row(), index.column())
@@ -382,7 +390,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
 
         return ()
 
-    def _get_value(self, row: int, column: int) -> typing.Any:
+    def _get_value(self, row: int, column: int) -> Any:
         """Get a value for a given row and column index"""
         column_name = self._columns[column]
         if not column_name:
@@ -440,7 +448,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
             cols.sort()
             self._insert_columns(cols)
 
-    def _insert_columns(self, new_columns: typing.Sequence):
+    def _insert_columns(self, new_columns: Sequence):
         """Add new columns to our existing ones"""
         first_col = len(self._columns)
         last_col = first_col + len(new_columns) - 1

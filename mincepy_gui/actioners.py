@@ -37,6 +37,7 @@ class DataRecordActioner(plugins.Actioner):
     def probe(self, obj, context) -> Optional[Iterable[str]]:
         if isinstance(obj, mincepy.DataRecord):
             return ("Delete",)
+
         if isinstance(obj, Iterable) \
                 and all(map(lambda val: isinstance(val, mincepy.DataRecord), obj)):
             count = len(tuple(obj))

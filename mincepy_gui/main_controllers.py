@@ -26,7 +26,7 @@ class MainController(QObject):
         self._tasks = []
         self._action_manager = extend.ActionManager()
         self._action_context = {
-            action_controllers.CONTEXT_CLIPBOARD: QtGui.QGuiApplication.clipboard()
+            action_controllers.Context.CLIPBOARD: QtGui.QGuiApplication.clipboard()
         }
         self._copier = None
         self._load_plugins()
@@ -92,12 +92,14 @@ class MainController(QObject):
         self._entries_table.set_show_as_objects(window.display_as_class.checkState() == Qt.Checked)
 
     def _create_controllers(self, window):
-        controllers.DatabaseController(self._db_model,
-                                       window.uri_line,
-                                       window.connect_button,
-                                       default_uri=self._default_uri,
-                                       executor=self._execute,
-                                       parent=self)
+        db_controller = controllers.DatabaseController(self._db_model,
+                                                       window.uri_line,
+                                                       window.connect_button,
+                                                       default_uri=self._default_uri,
+                                                       executor=self._execute,
+                                                       parent=self)
+        self._action_context[action_controllers.Context.DATABASE] = db_controller
+
         controllers.QueryController(self._query_model, window.query_line, parent=self)
 
         action_controller = action_controllers.ActionController(self._action_manager,
