@@ -1,18 +1,16 @@
-from collections import namedtuple
-from functools import partial
+"""Module containing classes for listing records in the database"""
+
+import collections
 import logging
-from typing import Sequence, Any, Optional, Dict
+from typing import Optional, Dict, Any, Sequence
 
-import PySide2
-from PySide2 import QtCore, QtGui
-from PySide2.QtCore import QObject, Signal, Slot, Qt, QModelIndex
+from PySide2 import QtCore, QtGui, QtWidgets
 from pytray import tree
-
 import mincepy
-from . import common
-from . import utils
 
-__all__ = 'DbModel', 'SnapshotRecord'
+from . import common
+from . import query
+from . import utils
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -25,203 +23,7 @@ TOOLTIPS = {
     mincepy.VERSION: 'Version',
 }
 
-SnapshotRecord = namedtuple("SnapshotRecord", 'snapshot record')
-
-
-class DbModel(QObject):
-    # Signals
-    historian_changed = Signal(mincepy.Historian)
-    objects_deleted = Signal(list)
-
-    def __init__(self):
-        super().__init__()
-        self._historian = None
-
-    @property
-    def historian(self) -> mincepy.Historian:
-        return self._historian
-
-    @Slot(mincepy.Historian)
-    def set_historian(self, historian):
-        self._historian = historian
-        self.historian_changed.emit(self._historian)
-
-    def _delete(self, *obj_id):
-        with self.historian.transaction():
-            for entry in obj_id:
-                self.historian.delete(entry)
-        self.objects_deleted.emit(obj_id)
-
-
-class DataRecordQueryModel(QtCore.QAbstractTableModel):
-    # Signals
-    type_restriction_changed = Signal(object)
-    sort_changed = Signal(dict)
-    query_changed = Signal(dict)
-
-    def __init__(self, db_model: DbModel, executor=common.default_executor, parent=None):
-        super().__init__(parent)
-        self._db_model = db_model
-        self._query = {}
-        self._results = None
-        self._sort = None
-        self._type_restriction = None
-        self._column_names = mincepy.DataRecord._fields
-        self._update_future = None
-        self._init()
-
-        self._executor = executor
-        self._new_results.connect(self._inject_results)
-
-        # If the historian changes then we get invalidated
-        self._db_model.historian_changed.connect(lambda hist: self._invalidate_results())
-
-    def _init(self):
-        self.set_show_current(True)
-
-    @property
-    def db_model(self):
-        return self._db_model
-
-    @property
-    def column_names(self):
-        return self._column_names
-
-    def get_query(self):
-        return self._query
-
-    def set_query(self, query: dict):
-        """Set the query that will be passed to historian.find()"""
-        if query == self._query:
-            return
-
-        self._query = query
-        self.query_changed.emit(query)
-        self._invalidate_results()
-
-    def update_query(self, update: dict):
-        new_query = self.get_query().copy()
-        new_query.update(update)
-        self.set_query(new_query)
-
-    def set_type_restriction(self, type_id):
-        if type_id == self.get_type_restriction():
-            return
-
-        restriction = {'obj_type': type_id}
-        self.update_query(restriction)
-        self.type_restriction_changed.emit(self.get_type_restriction())
-
-    def get_type_restriction(self):
-        return self.get_query().get('obj_type', None)
-
-    def set_show_current(self, show: bool):
-        """Set the query such that it only show current objects i.e. the latest versions of objects
-        that have not been deleted"""
-        if self.get_show_current() == show:
-            return
-
-        if show:
-            self._query['version'] = -1
-        else:
-            self._query.pop('version')
-
-        self.query_changed.emit(self._query)
-
-    def get_show_current(self) -> bool:
-        """Get whether we are only showing current objects i.e. the latest version and not deleted
-        """
-        return self._query.get('version', None) == -1
-
-    def set_sort(self, sort):
-        """Set the sort criterion"""
-        if sort == self.get_sort():
-            return
-
-        self.update_query({'sort': sort})
-        self.sort_changed.emit(self.get_sort())
-
-    def get_sort(self):
-        return self._query.get('sort', None)
-
-    def get_records(self):
-        return self._results
-
-    def refresh(self):
-        self._invalidate_results()
-
-    def rowCount(self, _parent: QtCore.QModelIndex = QModelIndex()) -> int:
-        if self._results is None:
-            return 0
-
-        return len(self._results)
-
-    def columnCount(self, _parent: QtCore.QModelIndex = QModelIndex()) -> int:
-        return len(self.column_names)
-
-    def headerData(self,
-                   section: int,
-                   orientation: PySide2.QtCore.Qt.Orientation,
-                   role: int = ...) -> Any:
-        if role != Qt.DisplayRole:
-            return None
-
-        if orientation == QtCore.Qt.Orientation.Horizontal:
-            return self.column_names[section]
-
-        return str(self._results[section])
-
-    def data(self, index: PySide2.QtCore.QModelIndex, role: int = ...) -> Any:
-        if role == Qt.DisplayRole:
-            value = getattr(self._results[index.row()], self.column_names[index.column()])
-            return str(value)
-
-        return None
-
-    def _update_results(self):
-        if self._query is None or self._db_model.historian is None:
-            self._results = []
-        else:
-            self._results = []
-            self._update_future = self._executor(partial(self._perform_query, self.get_query()),
-                                                 msg="Querying...",
-                                                 blocking=False)
-
-    def _invalidate_results(self):
-        self.beginResetModel()
-        self._results = None
-        self.endResetModel()
-        self._update_results()
-
-    def _perform_query(self, query, batch_size=4):
-        logging.debug("Starting query: %s", query)
-
-        total = 0
-        batch = []
-        for result in self._db_model.historian.find_records(**query):
-            batch.append(result)
-            if len(batch) == batch_size:
-                self._new_results.emit(batch)
-                batch = []
-            total += 1
-
-        if batch:
-            # Emit the last batch
-            self._new_results.emit(batch)
-
-        logging.debug('Finished query, got %s results', total)
-
-    _new_results = Signal(list)
-
-    @QtCore.Slot(list)
-    def _inject_results(self, batch: list):
-        """As a query is executed batches of results as emitted and passed to this callback for
-        insertion"""
-        first = len(self._results)
-        last = first + len(batch) - 1
-        self.beginInsertRows(QModelIndex(), first, last)
-        self._results.extend(batch)
-        self.endInsertRows()
+SnapshotRecord = collections.namedtuple("SnapshotRecord", 'snapshot record')
 
 
 class EntriesTable(QtCore.QAbstractTableModel):
@@ -229,9 +31,9 @@ class EntriesTable(QtCore.QAbstractTableModel):
     DEFAULT_COLUMNS = (mincepy.TYPE_ID, mincepy.CREATION_TIME, mincepy.SNAPSHOT_TIME,
                        mincepy.VERSION, mincepy.STATE)
 
-    object_activated = Signal(object)
+    object_activated = QtCore.Signal(object)
 
-    def __init__(self, query_model: DataRecordQueryModel, parent=None):
+    def __init__(self, query_model: query.QueryModel, parent=None):
         super().__init__(parent)
         self._query_model = query_model
         self._query_model.modelReset.connect(self._invalidate)
@@ -278,7 +80,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
                 first = len(self.DEFAULT_COLUMNS)
                 last = len(self._columns) - 1
 
-                self.beginRemoveColumns(QModelIndex(), first, last)
+                self.beginRemoveColumns(QtCore.QModelIndex(), first, last)
                 self._reset_columns()
                 self.endRemoveColumns()
 
@@ -297,17 +99,14 @@ class EntriesTable(QtCore.QAbstractTableModel):
         # Ask the query to refresh from the database
         self._query_model.refresh()
 
-    def rowCount(self, _parent: PySide2.QtCore.QModelIndex = ...) -> int:
+    def rowCount(self, _parent: QtCore.QModelIndex = ...) -> int:
         return self._query_model.rowCount()
 
-    def columnCount(self, _parent: PySide2.QtCore.QModelIndex = ...) -> int:
+    def columnCount(self, _parent: QtCore.QModelIndex = ...) -> int:
         return len(self._columns)
 
-    def headerData(self,
-                   section: int,
-                   orientation: PySide2.QtCore.Qt.Orientation,
-                   role: int = ...) -> Any:
-        if role != Qt.DisplayRole:
+    def headerData(self, section: int, orientation: QtCore.Qt.Orientation, role: int = ...) -> Any:
+        if role != QtCore.Qt.DisplayRole:
             return None
 
         if orientation == QtCore.Qt.Orientation.Horizontal:
@@ -320,18 +119,18 @@ class EntriesTable(QtCore.QAbstractTableModel):
 
         return None
 
-    def data(self, index: PySide2.QtCore.QModelIndex, role: int = ...) -> Any:
+    def data(self, index: QtCore.QModelIndex, role: int = ...) -> Any:
         column_name = self._columns[index.column()]
         if role == common.DataRole:
             return self._get_value(index.row(), index.column())
-        if role == Qt.DisplayRole:
+        if role == QtCore.Qt.DisplayRole:
             return self._get_value_string(index.row(), index.column())
-        if role == Qt.FontRole:
+        if role == QtCore.Qt.FontRole:
             if column_name in mincepy.DataRecord._fields:
                 font = QtGui.QFont()
                 font.setItalic(True)
                 return font
-        if role == Qt.ToolTipRole:
+        if role == QtCore.Qt.ToolTipRole:
             try:
                 return TOOLTIPS[column_name]
             except KeyError:
@@ -339,7 +138,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
 
         return None
 
-    def sort(self, column: int, order: PySide2.QtCore.Qt.SortOrder = ...):
+    def sort(self, column: int, order: QtCore.Qt.SortOrder = ...):
         column_name = self._columns[column]
         try:
             sort_criterion = column_name
@@ -350,12 +149,13 @@ class EntriesTable(QtCore.QAbstractTableModel):
             sort_criterion = "state.{}".format(column_name)
 
         sort_dict = {
-            sort_criterion: mincepy.ASCENDING if order == Qt.AscendingOrder else mincepy.DESCENDING
+            sort_criterion:
+                mincepy.ASCENDING if order == QtCore.Qt.AscendingOrder else mincepy.DESCENDING
         }
         self._query_model.set_sort(sort_dict)
 
-    @Slot(QModelIndex)
-    def activate_entry(self, index: QModelIndex):
+    @QtCore.Slot(QtCore.QModelIndex)
+    def activate_entry(self, index: QtCore.QModelIndex):
         obj = self.data(index, role=common.DataRole)
         if obj is not None and obj != UNSET:
             self.object_activated.emit(obj)
@@ -429,10 +229,10 @@ class EntriesTable(QtCore.QAbstractTableModel):
         value = self._get_value(row, column)
         return utils.pretty_format(value, single_line=True, max_length=100)
 
-    def _query_rows_inserted(self, _parent: QModelIndex, first: int, last: int):
+    def _query_rows_inserted(self, _parent: QtCore.QModelIndex, first: int, last: int):
         """Called when there are new entries inserted into the entries table"""
 
-        self.beginInsertRows(QModelIndex(), first, last)
+        self.beginInsertRows(QtCore.QModelIndex(), first, last)
 
         columns = set()  # Keep track of all the columns in this batch
         for row in range(first, last + 1):
@@ -452,7 +252,7 @@ class EntriesTable(QtCore.QAbstractTableModel):
         """Add new columns to our existing ones"""
         first_col = len(self._columns)
         last_col = first_col + len(new_columns) - 1
-        self.beginInsertColumns(QModelIndex(), first_col, last_col)
+        self.beginInsertColumns(QtCore.QModelIndex(), first_col, last_col)
         self._columns.extend(new_columns)
         self.endInsertColumns()
 
@@ -461,3 +261,62 @@ class EntriesTable(QtCore.QAbstractTableModel):
         either a model invalidation or appropriate removeColumns call
         """
         self._columns = list(self.DEFAULT_COLUMNS)
+
+
+class EntriesTableController(QtCore.QObject):
+    """Controller for the table showing database entries"""
+    DATA_RECORDS = 'Data Record(s)'
+    VALUES = 'Values(s)'
+
+    context_menu_requested = QtCore.Signal(dict, QtCore.QPoint)
+
+    def __init__(self,
+                 entries_table: EntriesTable,
+                 entries_table_view: QtWidgets.QTableView,
+                 parent=None):
+        """
+        :param entries_table: the entries table model
+        :param entries_table_view: the entries table view
+        :param parent: the parent widget
+        """
+        super().__init__(parent)
+        self._entries_table = entries_table
+        self._entries_table_view = entries_table_view
+
+        # Configure the view
+        self._entries_table_view.setContextMenuPolicy(QtGui.Qt.CustomContextMenu)
+        self._entries_table_view.customContextMenuRequested.connect(self._entries_context_menu)
+
+    def get_selected(self) -> dict:
+        groups = {}
+        selected = self._entries_table_view.selectionModel().selectedIndexes()
+
+        rows = {index.row() for index in selected}
+        rows = sorted(tuple(rows))
+        data_records = tuple(self._entries_table.get_record(row) for row in rows)
+
+        if data_records:
+            groups[self.DATA_RECORDS] = data_records if len(data_records) > 1 else data_records[0]
+
+        objects = tuple(self._entries_table.data(index, role=common.DataRole) for index in selected)
+        if objects:
+            groups[self.VALUES] = objects if len(objects) > 1 else objects[0]
+
+        return groups
+
+    def handle_copy(self, copier: callable):
+        if not copier:
+            return
+
+        selected = self._entries_table_view.selectionModel().selectedIndexes()
+        if selected:
+            rows = {index.row() for index in selected}
+            data_records = tuple(self._entries_table.get_record(row) for row in rows)
+            # Convert to scalar if needed
+            data_records = data_records if len(data_records) > 1 else data_records[0]
+            copier(data_records)
+
+    @QtCore.Slot(QtCore.QPoint)
+    def _entries_context_menu(self, point: QtCore.QPoint):
+        groups = self.get_selected()
+        self.context_menu_requested.emit(groups, self._entries_table_view.mapToGlobal(point))

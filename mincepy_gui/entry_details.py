@@ -1,15 +1,14 @@
-"""Module for tree model related methods and classes"""
+"""Module for display details about a database entry"""
 from abc import ABCMeta, abstractmethod
 import operator
 import typing
 from typing import Sequence, Mapping
 
-import PySide2
-from PySide2 import QtCore
-from PySide2.QtCore import QModelIndex, Qt, Signal, Slot
+from PySide2 import QtCore, QtWidgets, QtGui
 
 import mincepy
 from . import common
+from . import records
 from . import utils
 
 
@@ -118,18 +117,18 @@ class LazyMappingItem(BaseTreeItem):
         raise ValueError("'{}' is not a child".format(tree_item))
 
 
-class RecordTree(QtCore.QAbstractItemModel):
+class EntryDetails(QtCore.QAbstractItemModel):
     COLUMN_HEADERS = 'Property', 'Type', 'Value'
 
-    object_activated = Signal(object)
+    object_activated = QtCore.Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._root_item = DataTreeItem(self.COLUMN_HEADERS)
         self._data_record = None  # type: typing.Optional[mincepy.DataRecord]
 
-    @Slot(QModelIndex)
-    def activate_entry(self, index: QModelIndex):
+    @QtCore.Slot(QtCore.QModelIndex)
+    def activate_entry(self, index: QtCore.QModelIndex):
         obj = self.data(index, role=common.DataRole)
         if obj:
             self.object_activated.emit(obj)
@@ -137,10 +136,10 @@ class RecordTree(QtCore.QAbstractItemModel):
     def index(self,
               row: int,
               column: int,
-              parent: PySide2.QtCore.QModelIndex = QModelIndex()) -> \
-            PySide2.QtCore.QModelIndex:
+              parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> \
+            QtCore.QModelIndex:
         if not self.hasIndex(row, column, parent):
-            return QModelIndex()
+            return QtCore.QModelIndex()
 
         if not parent.isValid():
             parent_item = self._root_item
@@ -151,21 +150,21 @@ class RecordTree(QtCore.QAbstractItemModel):
         if child_item is not None:
             return self.createIndex(row, column, child_item)
 
-        return QModelIndex()
+        return QtCore.QModelIndex()
 
-    def parent(self, child: QModelIndex) -> QModelIndex:
+    def parent(self, child: QtCore.QModelIndex) -> QtCore.QModelIndex:
         if not child.isValid():
-            return QModelIndex()
+            return QtCore.QModelIndex()
 
         child_item = child.internalPointer()  # type: DataTreeItem
         parent_item = child_item.parent()  # type: DataTreeItem
 
         if parent_item is self._root_item:
-            return QModelIndex()
+            return QtCore.QModelIndex()
 
         return self.createIndex(parent_item.row(), 0, parent_item)
 
-    def rowCount(self, parent: PySide2.QtCore.QModelIndex = ...) -> int:
+    def rowCount(self, parent: QtCore.QModelIndex = ...) -> int:
         if parent.column() > 0:
             return 0
 
@@ -176,14 +175,14 @@ class RecordTree(QtCore.QAbstractItemModel):
 
         return parent_item.child_count()
 
-    def columnCount(self, _parent: PySide2.QtCore.QModelIndex = ...) -> int:
+    def columnCount(self, _parent: QtCore.QModelIndex = ...) -> int:
         return self._root_item.column_count()
 
-    def data(self, index: PySide2.QtCore.QModelIndex, role: int = ...) -> typing.Any:
+    def data(self, index: QtCore.QModelIndex, role: int = ...) -> typing.Any:
         if not index.isValid():
             return None
 
-        if role == Qt.DisplayRole:
+        if role == QtCore.Qt.DisplayRole:
             item = index.internalPointer()  # type: BaseTreeItem
             return item.string(index.column())
         if role == common.DataRole:
@@ -191,17 +190,17 @@ class RecordTree(QtCore.QAbstractItemModel):
 
         return None
 
-    def flags(self, index: PySide2.QtCore.QModelIndex) -> PySide2.QtCore.Qt.ItemFlags:
+    def flags(self, index: QtCore.QModelIndex) -> QtCore.Qt.ItemFlags:
         if not index.isValid():
-            return Qt.NoItemFlags
+            return QtCore.Qt.NoItemFlags
 
-        return super(RecordTree, self).flags(index)
+        return super(EntryDetails, self).flags(index)
 
     def headerData(self,
                    section: int,
-                   orientation: PySide2.QtCore.Qt.Orientation,
+                   orientation: QtCore.Qt.Orientation,
                    role: int = ...) -> typing.Any:
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+        if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
             return self._root_item.data(section)
 
         return None
@@ -257,3 +256,57 @@ class RecordTree(QtCore.QAbstractItemModel):
 
         # Fall back to a plain unnested item
         return DataTreeItem(column_data, parent)
+
+
+class EntryDetailsController(QtCore.QObject):
+    """Controller that set what is displayed in the details tree"""
+
+    context_menu_requested = QtCore.Signal(dict, QtCore.QPoint)
+
+    def __init__(self,
+                 entries_table: records.EntriesTable,
+                 entries_table_view: QtWidgets.QTableView,
+                 entry_details_view: QtWidgets.QTreeWidget,
+                 details_tree: EntryDetails = None,
+                 parent=None):
+        super().__init__(parent)
+        self._entries_table = entries_table
+        self._entries_table_view = entries_table_view
+        self._details_tree_view = entry_details_view
+        self._details_tree = details_tree or EntryDetails(self)
+
+        # Configure the view
+        self._details_tree_view.setContextMenuPolicy(QtGui.Qt.CustomContextMenu)
+        self._details_tree_view.customContextMenuRequested.connect(self._entry_context_menu)
+
+        def handle_row_changed(current, _previous):
+            record = self._entries_table.get_record(current.row())
+            snapshot = self._entries_table.get_snapshot(current.row())
+            self._details_tree.set_record(record, snapshot)
+
+        self._entries_table_view.selectionModel().currentRowChanged.connect(handle_row_changed)
+
+    def handle_copy(self, copier: callable):
+        objects = self._get_currently_selected_objects()
+        if not objects:
+            return
+
+        objects = objects if len(objects) > 1 else objects[0]
+        copier(objects)
+
+    @QtCore.Slot(QtCore.QPoint)
+    def _entry_context_menu(self, point: QtCore.QPoint):
+        objects = self._get_currently_selected_objects()
+        if objects:
+            groups = {}
+            groups['Objects'] = objects if len(objects) > 1 else objects[0]
+            self.context_menu_requested.emit(groups, self._details_tree_view.mapToGlobal(point))
+
+    def _get_currently_selected_objects(self):
+        # We just want the value, we don't care about the other columns
+        value_col = EntryDetails.COLUMN_HEADERS.index('Value')
+        selected = tuple(
+            index for index in self._details_tree_view.selectionModel().selectedIndexes()
+            if index.column() == value_col)
+
+        return tuple(self._details_tree.data(index, role=common.DataRole) for index in selected)

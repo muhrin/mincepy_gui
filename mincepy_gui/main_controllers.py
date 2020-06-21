@@ -7,10 +7,11 @@ from PySide2 import QtGui
 from PySide2.QtCore import QObject, Qt, Slot, Signal
 
 from . import action_controllers
-from . import controllers
+from . import db
 from . import extend
-from . import models
-from . import tree_models
+from . import entry_details
+from . import query
+from . import records
 from . import types_controller
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -70,15 +71,15 @@ class MainController(QObject):
             self._entry_details_controller.handle_copy(self._copier)
 
     def _create_models(self):
-        self._db_model = models.DbModel()
-        self._query_model = models.DataRecordQueryModel(self._db_model, self._execute, parent=self)
-        self._entries_table = models.EntriesTable(self._query_model, parent=self)
-        self._entry_details = tree_models.RecordTree(parent=self)
+        self._db_model = db.DatabaseModel()
+        self._query_model = query.QueryModel(self._db_model, self._execute, parent=self)
+        self._entries_table = records.EntriesTable(self._query_model, parent=self)
+        self._details_tree = entry_details.EntryDetails(parent=self)
 
     def _init_views(self, window):
         window.entries_table.setSortingEnabled(True)
         window.entries_table.setModel(self._entries_table)
-        window.entry_details.setModel(self._entry_details)
+        window.entry_details.setModel(self._details_tree)
 
         self._init_display_as_class(window)
         window.refresh_button.clicked.connect(self._entries_table.refresh)
@@ -92,15 +93,15 @@ class MainController(QObject):
         self._entries_table.set_show_as_objects(window.display_as_class.checkState() == Qt.Checked)
 
     def _create_controllers(self, window):
-        db_controller = controllers.DatabaseController(self._db_model,
-                                                       window.uri_line,
-                                                       window.connect_button,
-                                                       default_uri=self._default_uri,
-                                                       executor=self._execute,
-                                                       parent=self)
+        db_controller = db.DatabaseController(self._db_model,
+                                              window.uri_line,
+                                              window.connect_button,
+                                              default_uri=self._default_uri,
+                                              executor=self._execute,
+                                              parent=self)
         self._action_context[action_controllers.Context.DATABASE] = db_controller
 
-        controllers.QueryController(self._query_model, window.query_line, parent=self)
+        query.QueryController(self._query_model, window.query_line, parent=self)
 
         action_controller = action_controllers.ActionController(self._action_manager,
                                                                 context=self._action_context,
@@ -108,18 +109,18 @@ class MainController(QObject):
                                                                 parent=self)
 
         # Entries table
-        self._entries_table_controller = controllers.EntriesTableController(self._entries_table,
-                                                                            window.entries_table,
-                                                                            parent=self)
+        self._entries_table_controller = records.EntriesTableController(self._entries_table,
+                                                                        window.entries_table,
+                                                                        parent=self)
         self._entries_table_controller.context_menu_requested.connect(
             action_controller.trigger_context_menu)
 
         # Entry details
-        self._entry_details_controller = controllers.EntryDetailsController(self._entries_table,
-                                                                            window.entries_table,
-                                                                            window.entry_details,
-                                                                            self._entry_details,
-                                                                            parent=self)
+        self._entry_details_controller = entry_details.EntryDetailsController(self._entries_table,
+                                                                              window.entries_table,
+                                                                              window.entry_details,
+                                                                              self._details_tree,
+                                                                              parent=self)
         self._entry_details_controller.context_menu_requested.connect(
             action_controller.trigger_context_menu)
 

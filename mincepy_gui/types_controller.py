@@ -3,7 +3,7 @@ from PySide2.QtWidgets import QComboBox, QCompleter
 from PySide2 import QtWidgets
 
 from . import common
-from . import models
+from . import query
 from . import utils
 
 
@@ -12,7 +12,7 @@ class TypeFilterController(QObject):
     ALL = None
 
     def __init__(self,
-                 query_model: models.DataRecordQueryModel,
+                 query_model: query.QueryModel,
                  view: QtWidgets.QComboBox = None,
                  executor=common.default_executor,
                  parent=None):
