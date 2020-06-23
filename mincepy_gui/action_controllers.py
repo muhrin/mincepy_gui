@@ -8,19 +8,25 @@ from PySide2 import QtWidgets
 from . import common
 from . import extend
 
-__all__ = ('CONTEXT_CLIPBOARD',)
+__all__ = ('CONTEXT_CLIPBOARD', 'ActionContext')
 
 
-class Context(enum.Enum):
+class AutoNumber(enum.Enum):
 
-    def _generate_next_value_(name, start, count, last_values):
-        return name
+    def __new__(cls):
+        value = len(cls.__members__) + 1
+        obj = object.__new__(cls)
+        obj._value_ = value
+        return obj
 
-    CLIPBOARD = enum.auto()
-    DATABASE = enum.auto()
+
+class ActionContext(AutoNumber):
+    PARENT = ()
+    CLIPBOARD = ()
+    DATABASE = ()
 
 
-CONTEXT_CLIPBOARD = Context.CLIPBOARD
+CONTEXT_CLIPBOARD = ActionContext.CLIPBOARD
 
 
 class ActionController(QObject):

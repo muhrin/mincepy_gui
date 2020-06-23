@@ -2,13 +2,13 @@
 from abc import ABCMeta, abstractmethod
 import operator
 import typing
-from typing import Sequence, Mapping
+from typing import Sequence, Mapping, Optional
 
 from PySide2 import QtCore, QtWidgets, QtGui
-
 import mincepy
+
 from . import common
-from . import records
+from . import entry_table
 from . import utils
 
 
@@ -221,6 +221,13 @@ class EntryDetails(QtCore.QAbstractItemModel):
                                               len(tree_dict))
         self.endResetModel()
 
+    def reset(self):
+        if self._data_record is not None:
+            self.beginResetModel()
+            self._root_item = DataTreeItem(self.COLUMN_HEADERS)
+            self._data_record = None
+            self.endResetModel()
+
     def _item_builder(self, build_from, row, parent=None):
         if isinstance(build_from, Sequence):
             key = str(row)
@@ -264,7 +271,7 @@ class EntryDetailsController(QtCore.QObject):
     context_menu_requested = QtCore.Signal(dict, QtCore.QPoint)
 
     def __init__(self,
-                 entries_table: records.EntriesTable,
+                 entries_table: entry_table.ConstEntryTable,
                  entries_table_view: QtWidgets.QTableView,
                  entry_details_view: QtWidgets.QTreeWidget,
                  details_tree: EntryDetails = None,
@@ -274,17 +281,15 @@ class EntryDetailsController(QtCore.QObject):
         self._entries_table_view = entries_table_view
         self._details_tree_view = entry_details_view
         self._details_tree = details_tree or EntryDetails(self)
+        self._historian = None
 
         # Configure the view
         self._details_tree_view.setContextMenuPolicy(QtGui.Qt.CustomContextMenu)
         self._details_tree_view.customContextMenuRequested.connect(self._entry_context_menu)
 
-        def handle_row_changed(current, _previous):
-            record = self._entries_table.get_record(current.row())
-            snapshot = self._entries_table.get_snapshot(current.row())
-            self._details_tree.set_record(record, snapshot)
-
-        self._entries_table_view.selectionModel().currentRowChanged.connect(handle_row_changed)
+        # Connect everything
+        self._entries_table_view.selectionModel().currentRowChanged.connect(
+            self._handle_row_changed)
 
     def handle_copy(self, copier: callable):
         objects = self._get_currently_selected_objects()
@@ -310,3 +315,22 @@ class EntryDetailsController(QtCore.QObject):
             if index.column() == value_col)
 
         return tuple(self._details_tree.data(index, role=common.DataRole) for index in selected)
+
+    def reset(self, historian: Optional[mincepy.Historian]):
+        self._historian = historian
+        self._details_tree.reset()
+
+    def _handle_row_changed(self, current, _previous):
+        record = self._entries_table.get_record(current.row())
+        if record is None:
+            self._details_tree.reset()
+            return
+
+        snapshot = None
+        if self._historian is not None:
+            try:
+                snapshot = self._historian.load_snapshot(record.snapshot_id)
+            except TypeError:
+                pass
+
+        self._details_tree.set_record(record, snapshot)

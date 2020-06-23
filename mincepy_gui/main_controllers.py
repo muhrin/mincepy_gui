@@ -2,22 +2,25 @@ from concurrent.futures import ThreadPoolExecutor, Future
 from functools import partial
 import logging
 
-from PySide2 import QtWidgets
-from PySide2 import QtGui
-from PySide2.QtCore import QObject, Qt, Slot, Signal
+from PySide2 import QtGui, QtCore, QtWidgets
+from PySide2.QtCore import Qt
+import mincepy
 
 from . import action_controllers
 from . import db
 from . import extend
 from . import entry_details
+from . import entry_table
 from . import query
-from . import records
 from . import types_controller
+
+__all__ = ('MainController',)
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-class MainController(QObject):
+class MainController(QtCore.QObject):
+    # pylint: disable=too-many-instance-attributes
 
     def __init__(self, window, default_uri=''):
         super().__init__(window)
@@ -27,21 +30,20 @@ class MainController(QObject):
         self._tasks = []
         self._action_manager = extend.ActionManager()
         self._action_context = {
-            action_controllers.Context.CLIPBOARD: QtGui.QGuiApplication.clipboard()
+            action_controllers.ActionContext.PARENT: self._window,
+            action_controllers.ActionContext.CLIPBOARD: QtGui.QGuiApplication.clipboard()
         }
         self._copier = None
         self._load_plugins()
 
-        # Models
-        self._create_models()
-
-        # Views
-        self._init_views(window)
+        # Keep reference to our status bar
+        self._status_bar = window.status_bar  # type: QtWidgets.QStatusBar
 
         # Controllers
         self._create_controllers(window)
 
         self._init_shortcuts()
+        window.refresh_button.clicked.connect(self._execute_current_query)
         self._task_done_signal.connect(self._task_done)
         self._status_bar.showMessage('Ready')
 
@@ -57,76 +59,128 @@ class MainController(QObject):
 
     def _init_shortcuts(self):
         ctrl_c = QtGui.QKeySequence("Ctrl+C")
-
         QtWidgets.QShortcut(ctrl_c, self._window.splitter, self._copy)
 
-    @Slot()
-    def _copy(self):
-        if not self._copier:
-            return
-
-        if self._window.entries_table.hasFocus():
-            self._entries_table_controller.handle_copy(self._copier)
-        elif self._window.entry_details.hasFocus():
-            self._entry_details_controller.handle_copy(self._copier)
-
-    def _create_models(self):
-        self._db_model = db.DatabaseModel()
-        self._query_model = query.QueryModel(self._db_model, self._execute, parent=self)
-        self._entries_table = records.EntriesTable(self._query_model, parent=self)
-        self._details_tree = entry_details.EntryDetails(parent=self)
-
-    def _init_views(self, window):
-        window.entries_table.setSortingEnabled(True)
-        window.entries_table.setModel(self._entries_table)
-        window.entry_details.setModel(self._details_tree)
-
-        self._init_display_as_class(window)
-        window.refresh_button.clicked.connect(self._entries_table.refresh)
-
-        # Keep out status bar
-        self._status_bar = window.status_bar  # type: QtWidgets.QStatusBar
-
-    def _init_display_as_class(self, window):
-        window.display_as_class.stateChanged.connect(
-            lambda state: self._entries_table.set_show_as_objects(state == Qt.Checked))
-        self._entries_table.set_show_as_objects(window.display_as_class.checkState() == Qt.Checked)
-
     def _create_controllers(self, window):
-        db_controller = db.DatabaseController(self._db_model,
+        # Database
+        self._db_controller = self._create_database_controller(window)
+        # Actions
+        action_controller = self._create_actions_controller(self._db_controller,
+                                                            self._action_context)
+        # Results table
+        self._results_table_controller = self._create_results_table(
+            window, action_controller, self._db_controller.database_model)
+        # Query
+        self._query_controller = self._create_query_controller(window)
+        # Type filter
+        self._type_filter_controller = self._create_type_filter_controller(
+            window, self._query_controller)
+        # Entry details
+        self._entry_details_controller = self._create_entry_details(
+            window, action_controller, self._results_table_controller.entry_table)
+
+    def _create_actions_controller(self, db_controller: db.DatabaseController, action_context):
+        action_context[action_controllers.ActionContext.DATABASE] = db_controller
+        return action_controllers.ActionController(self._action_manager,
+                                                   context=self._action_context,
+                                                   executor=self._executor,
+                                                   parent=self)
+
+    def _create_database_controller(self, window):
+        # Create model
+        db_model = db.DatabaseModel()
+
+        # Create controller
+        db_controller = db.DatabaseController(db_model,
                                               window.uri_line,
                                               window.connect_button,
                                               default_uri=self._default_uri,
                                               executor=self._execute,
                                               parent=self)
-        self._action_context[action_controllers.Context.DATABASE] = db_controller
 
-        query.QueryController(self._query_model, window.query_line, parent=self)
+        # Connect everything
+        db_controller.historian_created.connect(self._handle_historian_created)
+        return db_controller
 
-        action_controller = action_controllers.ActionController(self._action_manager,
-                                                                context=self._action_context,
-                                                                executor=self._executor,
-                                                                parent=self)
+    def _create_results_table(self, window, action_controller, db_model: db.ConstDatabaseModel):
+        # Create the model
+        results_table_model = entry_table.EntryTableModel(parent=self)
 
-        # Entries table
-        self._entries_table_controller = records.EntriesTableController(self._entries_table,
+        # Create the controller
+        results_table_controller = entry_table.EntryTableController(results_table_model,
+                                                                    window.entries_table,
+                                                                    window.display_as_class,
+                                                                    parent=self)
+
+        # Connect everything up
+
+        # When a query completes, update the results table
+        self._query_completed.connect(results_table_controller.set_source)
+
+        # Respond to context menu requests from the results table
+        results_table_controller.context_menu_requested.connect(
+            action_controller.trigger_context_menu)
+
+        @QtCore.Slot(list)
+        def handle_objects_deleted(obj_ids: list):
+            to_check = set(obj_ids)
+            results_table_controller.remove_matching_records(
+                lambda record: record.obj_id in to_check)
+
+        db_model.objects_deleted.connect(handle_objects_deleted)
+
+        # Respond to requests to sort the results table
+        window.entries_table.setSortingEnabled(True)
+        results_table_model.sort_requested.connect(self._handle_query_sort_requested)
+
+        return results_table_controller
+
+    def _create_query_controller(self, window):
+        # Create the model
+        query_model = query.QueryModel(parent=self)
+
+        # Create the controller
+        query_controller = query.QueryController(query_model, window.query_line, parent=self)
+
+        # Connect everything up
+        query_model.query_changed.connect(lambda _new_query: self._execute_current_query())
+
+        return query_controller
+
+    def _create_type_filter_controller(self, window, query_controller):
+        # Create the controller (using internal model from view)
+        type_filter_controller = types_controller.TypeFilterController(window.type_filter,
+                                                                       parent=self)
+
+        # Connect everything up
+        type_filter_controller.type_restriction_changed.connect(
+            query_controller.set_type_restriction)
+
+        return type_filter_controller
+
+    def _create_entry_details(self, window, action_controller,
+                              results_table: entry_table.ConstEntryTable):
+        # Create the model
+        entry_details_model = entry_details.EntryDetails(parent=self)
+        # Link model and view
+        window.entry_details.setModel(entry_details_model)
+
+        # Create the controller
+        entry_details_controller = entry_details.EntryDetailsController(results_table,
                                                                         window.entries_table,
+                                                                        window.entry_details,
+                                                                        entry_details_model,
                                                                         parent=self)
-        self._entries_table_controller.context_menu_requested.connect(
+
+        # Connect everything up
+        entry_details_controller.context_menu_requested.connect(
             action_controller.trigger_context_menu)
 
-        # Entry details
-        self._entry_details_controller = entry_details.EntryDetailsController(self._entries_table,
-                                                                              window.entries_table,
-                                                                              window.entry_details,
-                                                                              self._details_tree,
-                                                                              parent=self)
-        self._entry_details_controller.context_menu_requested.connect(
-            action_controller.trigger_context_menu)
-
-        types_controller.TypeFilterController(self._query_model, window.type_filter, parent=self)
+        return entry_details_controller
 
     def _execute(self, func, msg=None, blocking=False) -> Future:
+        """Execute a task function optionally displaying a message.  Blocking tasks will result in
+        a waiting cursor"""
         future = self._executor.submit(func)
         QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor if blocking else Qt.BusyCursor)
         self._tasks.append(future)
@@ -136,16 +190,64 @@ class MainController(QObject):
 
         return future
 
-    _task_done_signal = Signal(Future)
+    # Signals
+    _task_done_signal = QtCore.Signal(Future)
+    _query_completed = QtCore.Signal(object, mincepy.Historian)
 
-    @Slot(object)
+    @QtCore.Slot()
+    def _copy(self):
+        if not self._copier:
+            return
+
+        if self._window.entries_table.hasFocus():
+            self._results_table_controller.handle_copy(self._copier)
+        elif self._window.entry_details.hasFocus():
+            self._entry_details_controller.handle_copy(self._copier)
+
+    @QtCore.Slot()
+    def _execute_current_query(self):
+        historian = self._db_controller.database_model.historian
+        if historian is None:
+            return
+
+        def execute_query():
+            query_model = self._query_controller.query_model
+            results = historian.find_records(**query_model.get_query())
+            self._query_completed.emit(results, historian)
+
+        self._execute(execute_query, "Querying...", blocking=False)
+
+    @QtCore.Slot(mincepy.Historian)
+    def _handle_historian_created(self, historian: mincepy.Historian):
+        mincepy.set_historian(historian)
+        self._results_table_controller.reset()
+        self._entry_details_controller.reset(historian)
+        self._type_filter_controller.update(historian)
+        self._execute_current_query()
+
+    @QtCore.Slot(dict)
+    def _handle_query_changed(self, _new_query: dict):
+        self._execute_current_query()
+
+    @QtCore.Slot(str, QtCore.Qt.SortOrder)
+    def _handle_query_sort_requested(self, path, order):
+        if order == QtCore.Qt.SortOrder.AscendingOrder:
+            sort = {path: mincepy.ASCENDING}
+        elif order == QtCore.Qt.SortOrder.DescendingOrder:
+            sort = {path: mincepy.DESCENDING}
+        else:
+            return
+
+        self._query_controller.set_sort(sort)
+
+    @QtCore.Slot(object)
     def _object_activated(self, obj):
         if self._app_common.type_viewers:
             self._execute(partial(self._app_common.call_viewers, obj),
                           msg="Calling viewer",
                           blocking=True)
 
-    @Slot(Future)
+    @QtCore.Slot(Future)
     def _task_done(self, future):
         self._tasks.remove(future)
         QtWidgets.QApplication.restoreOverrideCursor()
