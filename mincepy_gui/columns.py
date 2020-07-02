@@ -1,6 +1,6 @@
 import abc
 import functools
-from typing import Sequence
+from typing import Sequence, Union
 
 from PySide2 import QtCore, QtGui
 import mincepy
@@ -72,6 +72,7 @@ class DataColumn(Column):
 
 
 class TypeColumn(DataColumn):
+    """Column for getting the type id"""
 
     def __init__(self, name: str, tooltip: str = None):
         super(TypeColumn, self).__init__(name, [mincepy.TYPE_ID], tooltip=tooltip)
@@ -96,8 +97,19 @@ class TypeColumn(DataColumn):
         return super().data(record, role, historian=historian)
 
 
-OBJ_ID = DataColumn(mincepy.OBJ_ID, tooltip='Object ID')
+def data_column(path: Union[str, Sequence], name=None, **kwargs) -> DataColumn:
+    """Helper for constructing columns.  Will automatically create name from a path if not supplied
+    """
+    if isinstance(path, str):
+        path = (path,)
+
+    if name is None:
+        name = ".".join(path)
+    return DataColumn(name, path=path, **kwargs)
+
+
+OBJ_ID = data_column(mincepy.OBJ_ID, tooltip='Object ID')
 OBJ_TYPE = TypeColumn('Obj type', tooltip="Object type")
-CTIME = DataColumn(mincepy.CREATION_TIME, tooltip="Creation time")
-MTIME = DataColumn(mincepy.SNAPSHOT_TIME, tooltip="Modification time")
-VERSION = DataColumn(mincepy.VERSION, tooltip="Version")
+CTIME = data_column(mincepy.CREATION_TIME, tooltip="Creation time")
+MTIME = data_column(mincepy.SNAPSHOT_TIME, tooltip="Modification time")
+VERSION = data_column(mincepy.VERSION, tooltip="Version")

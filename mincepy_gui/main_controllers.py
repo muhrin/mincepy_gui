@@ -1,4 +1,4 @@
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent import futures
 from functools import partial
 import logging
 
@@ -9,6 +9,7 @@ import mincepy
 from . import action_controllers
 from . import db
 from . import extend
+from . import executors
 from . import entry_details
 from . import entry_table
 from . import query
@@ -20,14 +21,17 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class MainController(QtCore.QObject):
-    # pylint: disable=too-many-instance-attributes
 
     def __init__(self, window, default_uri=''):
         super().__init__(window)
         self._window = window
         self._default_uri = default_uri
-        self._executor = ThreadPoolExecutor()
-        self._tasks = []
+
+        # Set up the executor
+        self._executor = executors.Executor(parent=self)
+        self._executor.task_started.connect(self._task_started)
+        self._executor.task_ended.connect(self._task_ended)
+
         self._action_manager = extend.ActionManager()
         self._action_context = {
             action_controllers.ActionContext.PARENT: self._window,
@@ -44,7 +48,6 @@ class MainController(QtCore.QObject):
 
         self._init_shortcuts()
         window.refresh_button.clicked.connect(self._execute_current_query)
-        self._task_done_signal.connect(self._task_done)
         self._status_bar.showMessage('Ready')
 
     def _load_plugins(self):
@@ -83,7 +86,7 @@ class MainController(QtCore.QObject):
         action_context[action_controllers.ActionContext.DATABASE] = db_controller
         return action_controllers.ActionController(self._action_manager,
                                                    context=self._action_context,
-                                                   executor=self._executor,
+                                                   executor=self._executor.execute,
                                                    parent=self)
 
     def _create_database_controller(self, window):
@@ -95,7 +98,7 @@ class MainController(QtCore.QObject):
                                               window.uri_line,
                                               window.connect_button,
                                               default_uri=self._default_uri,
-                                              executor=self._execute,
+                                              executor=self._executor.execute,
                                               parent=self)
 
         # Connect everything
@@ -149,8 +152,8 @@ class MainController(QtCore.QObject):
 
     def _create_type_filter_controller(self, window, query_controller):
         # Create the controller (using internal model from view)
-        type_filter_controller = types_controller.TypeFilterController(window.type_filter,
-                                                                       parent=self)
+        type_filter_controller = types_controller.TypeFilterController(
+            window.type_filter, executor=self._executor.execute, parent=self)
 
         # Connect everything up
         type_filter_controller.type_restriction_changed.connect(
@@ -178,20 +181,41 @@ class MainController(QtCore.QObject):
 
         return entry_details_controller
 
-    def _execute(self, func, msg=None, blocking=False) -> Future:
+    @QtCore.Slot(str, int, int)
+    def _task_started(self, msg: str, _num_running: int, num_blocking: int):
         """Execute a task function optionally displaying a message.  Blocking tasks will result in
         a waiting cursor"""
-        future = self._executor.submit(func)
-        QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor if blocking else Qt.BusyCursor)
-        self._tasks.append(future)
-        future.add_done_callback(self._task_done_signal.emit)
+        # Set the cursor
+        cursor = Qt.WaitCursor if num_blocking > 0 else Qt.BusyCursor
+        app = QtWidgets.QApplication
+        current_override = app.overrideCursor()
+        if current_override is None:
+            app.setOverrideCursor(cursor)
+        elif current_override != cursor:
+            app.changeOverrideCursor(cursor)
+
+        # Set the status message
         if msg is not None:
             self._status_bar.showMessage(msg)
 
-        return future
+    @QtCore.Slot(futures.Future)
+    def _task_ended(self, future: futures.Future, num_running: int, num_blocking: int):
+        cursor = Qt.WaitCursor if num_blocking > 0 else Qt.BusyCursor
+        app = QtWidgets.QApplication
+        current_override = app.overrideCursor()
+        if num_running == 0:
+            app.restoreOverrideCursor()
+        elif current_override != cursor:
+            app.setOverrideCursor(cursor)
+
+        try:
+            new_msg = future.result()
+            if new_msg is not None:
+                self._status_bar.showMessage(new_msg, 1000)
+        except Exception as exc:  # pylint: disable=broad-except
+            QtWidgets.QErrorMessage(self._window).showMessage(str(exc))
 
     # Signals
-    _task_done_signal = QtCore.Signal(Future)
     _query_completed = QtCore.Signal(object, mincepy.Historian)
 
     @QtCore.Slot()
@@ -215,7 +239,7 @@ class MainController(QtCore.QObject):
             results = historian.find_records(**query_model.get_query())
             self._query_completed.emit(results, historian)
 
-        self._execute(execute_query, "Querying...", blocking=False)
+        self._executor.execute(execute_query, "Querying...", blocking=False)
 
     @QtCore.Slot(mincepy.Historian)
     def _handle_historian_created(self, historian: mincepy.Historian):
@@ -239,25 +263,3 @@ class MainController(QtCore.QObject):
             return
 
         self._query_controller.set_sort(sort)
-
-    @QtCore.Slot(object)
-    def _object_activated(self, obj):
-        if self._app_common.type_viewers:
-            self._execute(partial(self._app_common.call_viewers, obj),
-                          msg="Calling viewer",
-                          blocking=True)
-
-    @QtCore.Slot(Future)
-    def _task_done(self, future):
-        self._tasks.remove(future)
-        QtWidgets.QApplication.restoreOverrideCursor()
-
-        if not self._tasks:
-            self._status_bar.clearMessage()
-
-        try:
-            new_msg = future.result()
-            if new_msg is not None:
-                self._status_bar.showMessage(new_msg, 1000)
-        except Exception as exc:  # pylint: disable=broad-except
-            QtWidgets.QErrorMessage(self._window).showMessage(str(exc))

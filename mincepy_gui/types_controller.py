@@ -1,4 +1,5 @@
 import functools
+from typing import Optional
 
 from PySide2 import QtWidgets, QtCore
 import mincepy
@@ -21,6 +22,8 @@ class TypeFilterController(QtCore.QObject):
         self._view = self._configure_view(view or QtWidgets.QComboBox(self))
         self._executor = executor
         self._types = [None]
+        self._updating = None
+        self._view.setEnabled(False)
 
     def _configure_view(self, view):
         view.setEditable(True)
@@ -30,11 +33,23 @@ class TypeFilterController(QtCore.QObject):
 
         return view
 
-    def update(self, historian: mincepy.Historian):
+    def update(self, historian: Optional[mincepy.Historian]):
         self._view.clear()
-        self._executor(functools.partial(self._gather_types, historian),
-                       "Gathering types",
-                       blocking=False)
+        if historian is None:
+            self._view.setEnabled(False)
+            return
+
+        self._updating = self._executor(functools.partial(self._gather_types, historian),
+                                        "Gathering types",
+                                        blocking=False)
+
+        def on_done(fut):
+            if fut is self._updating:
+                self._updating = None
+                if not fut.cancelled():
+                    self._view.setEnabled(True)
+
+        self._updating.add_done_callback(on_done)
 
     def _gather_types(self, historian: mincepy.Historian):
         results = historian.archive.find()

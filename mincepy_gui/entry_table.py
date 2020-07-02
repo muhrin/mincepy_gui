@@ -1,6 +1,6 @@
 import itertools
 import logging
-from typing import Iterator, Any, List, Optional, Callable
+from typing import Iterator, Any, List, Optional, Callable, Sequence
 
 from PySide2 import QtCore, QtWidgets, QtGui
 import mincepy
@@ -21,7 +21,7 @@ class ConstEntryTable(QtCore.QAbstractTableModel):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._historian = None
+        self._historian = None  # type: Optional[mincepy.Historian]
         self._records = []  # type: List[mincepy.DataRecord]
         self._columns = []  # type: List[cols.Column]
         self._data_source = None  # type: Optional[Iterator[mincepy.DataRecord]]
@@ -63,30 +63,6 @@ class ConstEntryTable(QtCore.QAbstractTableModel):
     def columnCount(self, _parent: QtCore.QModelIndex = ...) -> int:
         return len(self._columns)
 
-    def canFetchMore(self, _parent: QtCore.QModelIndex) -> bool:
-        return self._data_source is not None
-
-    def fetchMore(self, _parent: QtCore.QModelIndex):
-        # Fetch the new records
-        if self._data_source is None:
-            return
-
-        new_records = []
-        try:
-            for _ in range(self.batch_size):
-                new_records.append(next(self._data_source))
-        except StopIteration:
-            # No more data
-            self._data_source = None
-
-        if new_records:
-            # Insert the new records
-            num_records = len(self._records)
-            self.beginInsertRows(QtCore.QModelIndex(), num_records,
-                                 num_records + len(new_records) - 1)
-            self._records.extend(new_records)
-            self.endInsertRows()
-
     def data(self, index: QtCore.QModelIndex, role: int = ...) -> Any:
         if not index.isValid():
             return None
@@ -123,8 +99,32 @@ class EntryTableModel(ConstEntryTable):
         # Append the default columns
         self.append_columns(*self.get_default_columns())
 
+    def canFetchMore(self, _parent: QtCore.QModelIndex) -> bool:
+        return self._data_source is not None
+
+    def fetchMore(self, _parent: QtCore.QModelIndex):
+        # Fetch the new records
+        if self._data_source is None:
+            return
+
+        new_records = []
+        try:
+            for _ in range(self.batch_size):
+                new_records.append(next(self._data_source))
+        except StopIteration:
+            # No more data
+            self._data_source = None
+
+        if new_records:
+            # Insert the new records
+            num_records = len(self._records)
+            self.beginInsertRows(QtCore.QModelIndex(), num_records,
+                                 num_records + len(new_records) - 1)
+            self._records.extend(new_records)
+            self.endInsertRows()
+
     def set_source(self, source: Optional[Iterator[mincepy.DataRecord]],
-                   historian: mincepy.Historian):
+                   historian: Optional[mincepy.Historian]):
         """Set a new data source, can be None.  This resets the records contained in the list and
         sets it to be populated from the new source"""
         self.beginRemoveRows(QtCore.QModelIndex(), 0, len(self._records) - 1)
@@ -148,6 +148,15 @@ class EntryTableModel(ConstEntryTable):
             self._columns.pop(idx)
             self.endRemoveColumns()
 
+    def set_columns(self, columns: Sequence[cols.Column]):
+        self.clear_columns()
+        self.append_columns(*columns)
+
+    def clear_columns(self):
+        self.beginRemoveColumns(QtCore.QModelIndex(), 0, len(self._columns) - 1)
+        self._columns = []
+        self.endRemoveColumns()
+
     def remove_records(self, index: int, count: int) -> bool:
         """Remove 'count' records starting at the given index"""
         if index < 0 or index >= len(self._records) or count <= 0:
@@ -164,11 +173,6 @@ class EntryTableModel(ConstEntryTable):
     def remove_record(self, index: int) -> bool:
         """Remove the record at the given index"""
         return self.remove_records(index, 1)
-
-    def clear_columns(self):
-        self.beginRemoveColumns(QtCore.QModelIndex(), 0, len(self._columns) - 1)
-        self._columns = []
-        self.endRemoveColumns()
 
     def reset(self):
         self.beginResetModel()
