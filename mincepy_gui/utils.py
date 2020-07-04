@@ -30,7 +30,7 @@ def obj_dict(obj):
 
 class UUIDEncoder(json.JSONEncoder):
 
-    def default(self, obj):  # pylint: disable=arguments-differ
+    def default(self, obj):  # pylint: disable=arguments-differ, method-hidden
         if isinstance(obj, uuid.UUID):
             # if the obj is uuid, we simply return the value of uuid
             return repr(obj)
@@ -45,15 +45,17 @@ class UUIDDecoder(json.JSONDecoder):
         decoded = super(UUIDDecoder, self).decode(s)
 
         def to_uuid(entry, path):  # pylint: disable=unused-argument
+            obj_id = 'ObjectId'
             if isinstance(entry, str):
                 if entry.startswith('UUID('):
                     try:
                         return uuid.UUID(entry[6:-2])
                     except ValueError:
                         pass
-                elif entry.startswith('ObjectId('):
+                elif entry.startswith(obj_id):
                     try:
-                        return bson.ObjectId(entry[6:-2])
+                        # Object id format is ObjectId('...')
+                        return bson.ObjectId(entry[len(obj_id) + 2:-2])
                     except ValueError:
                         pass
 
@@ -98,7 +100,7 @@ def pretty_format(value, single_line=False, max_length=None) -> str:
 def open_file(filename):
     """Open a generic file on in a semi-portable way"""
     if sys.platform == "win32":
-        os.startfile(filename)
+        os.startfile(filename)  # Not present on linux pylint: disable=no-member
     else:
         opener = "open" if sys.platform == "darwin" else "xdg-open"
         subprocess.call([opener, filename])
