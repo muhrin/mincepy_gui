@@ -3,9 +3,9 @@ import functools
 from typing import Sequence, Union
 
 from PySide2 import QtCore, QtGui
-import mincepy
 from pytray import tree
 
+import mincepy
 from . import common
 from . import utils
 
@@ -52,7 +52,7 @@ class DataColumn(Column):
                 # If there is more to the path then descend using getitem()
                 try:
                     entry = tree.get_by_path(entry, self._path[1:])
-                except (KeyError, IndexError):
+                except (KeyError, IndexError, TypeError):
                     return None
 
             if role == common.DataRole:

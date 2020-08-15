@@ -138,13 +138,10 @@ class EntryDetails(QtCore.QAbstractItemModel):
               column: int,
               parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> \
             QtCore.QModelIndex:
-        if not self.hasIndex(row, column, parent):
-            return QtCore.QModelIndex()
-
-        if not parent.isValid():
-            parent_item = self._root_item
+        if parent.isValid():
+            parent_item = parent.internalPointer()  # type: BaseTreeItem
         else:
-            parent_item = parent.internalPointer()
+            parent_item = self._root_item
 
         child_item = parent_item.child(row)
         if child_item is not None:
@@ -205,7 +202,7 @@ class EntryDetails(QtCore.QAbstractItemModel):
 
         return None
 
-    def set_record(self, record: mincepy.DataRecord, obj=None):
+    def set_record(self, record: mincepy.DataRecord, obj: object = None, snapshot: object = None):
         """Set the data to visualise, the object instance can optionally be provided"""
         self.beginResetModel()
         self._data_record = record
@@ -216,6 +213,8 @@ class EntryDetails(QtCore.QAbstractItemModel):
             tree_dict = {'record': record._asdict()}
             if obj is not None:
                 tree_dict['obj'] = obj
+            if obj is not None:
+                tree_dict['snapshot'] = snapshot
 
             self._root_item = LazyMappingItem(self.COLUMN_HEADERS, tree_dict, self._item_builder,
                                               len(tree_dict))
@@ -228,7 +227,7 @@ class EntryDetails(QtCore.QAbstractItemModel):
             self._data_record = None
             self.endResetModel()
 
-    def _item_builder(self, build_from, row, parent=None):
+    def _item_builder(self, build_from, row, parent=None) -> BaseTreeItem:
         if isinstance(build_from, Sequence):
             key = str(row)
             try:
@@ -326,11 +325,15 @@ class EntryDetailsController(QtCore.QObject):
             self._details_tree.reset()
             return
 
-        snapshot = None
+        obj = snapshot = None
         if self._historian is not None:
+            try:
+                obj = self._historian.load(record.obj_id)
+            except TypeError:
+                pass
             try:
                 snapshot = self._historian.load_snapshot(record.snapshot_id)
             except TypeError:
                 pass
 
-        self._details_tree.set_record(record, snapshot)
+        self._details_tree.set_record(record, obj, snapshot)

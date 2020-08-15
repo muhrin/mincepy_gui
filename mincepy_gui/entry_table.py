@@ -10,7 +10,7 @@ from . import common
 
 __all__ = ('EntryTableModel',)
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = logging.getLogger(__name__)
 
 
 class ConstEntryTable(QtCore.QAbstractTableModel):
@@ -279,7 +279,8 @@ class EntryTableController(QtCore.QObject):
         state_keys = set()
         for row in range(start_row, end_row + 1):
             record = self._entry_table.get_record(row)
-            state_keys.update(record.state.keys())
+            if isinstance(record.state, dict):
+                state_keys.update(record.state.keys())
 
         for col in self._entry_table.columns:
             if isinstance(col, cols.DataColumn) \
@@ -301,7 +302,8 @@ class EntryTableController(QtCore.QObject):
         to_remove = set()
         for row in range(start_row, end_row + 1):
             record = self._entry_table.get_record(row)
-            to_remove.update(record.state.keys())
+            if isinstance(record.state, dict):
+                to_remove.update(record.state.keys())
 
         for row in itertools.chain(range(0, start_row),
                                    range(end_row + 1, len(self._entry_table.records))):

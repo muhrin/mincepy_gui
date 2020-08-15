@@ -17,7 +17,7 @@ from . import types_controller
 
 __all__ = ('MainController',)
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = logging.getLogger(__name__)
 
 
 class MainController(QtCore.QObject):
@@ -143,7 +143,10 @@ class MainController(QtCore.QObject):
         query_model = query.QueryModel(parent=self)
 
         # Create the controller
-        query_controller = query.QueryController(query_model, window.query_line, parent=self)
+        query_controller = query.QueryController(query_model,
+                                                 window.query_line,
+                                                 window.obj_id_line,
+                                                 parent=self)
 
         # Connect everything up
         query_model.query_changed.connect(lambda _new_query: self._execute_current_query())

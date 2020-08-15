@@ -47,10 +47,13 @@ class DataRecordActioner(plugins.Actioner):
         if isinstance(obj, mincepy.DataRecord):
             return ("Delete",)
 
-        if isinstance(obj, Iterable) \
-                and all(map(lambda val: isinstance(val, mincepy.DataRecord), obj)):
-            count = len(tuple(obj))
-            return ("Delete {}".format(count),)
+        try:
+            if all(map(lambda val: isinstance(val, mincepy.DataRecord), obj)):
+                count = len(tuple(obj))
+                return ("Delete {}".format(count),)
+        except TypeError:
+            # Not iterable
+            pass
 
         return None
 
@@ -58,8 +61,12 @@ class DataRecordActioner(plugins.Actioner):
         to_delete = []
         if isinstance(obj, mincepy.DataRecord):
             to_delete.append(obj.obj_id)
-        elif isinstance(obj, Iterable):
-            to_delete.extend([record.obj_id for record in obj])
+        else:
+            try:
+                to_delete.extend([record.obj_id for record in obj])
+            except TypeError:
+                # Not iterable
+                pass
 
         parent = context[action_controllers.ActionContext.PARENT]
         db_controller = context[action_controllers.ActionContext.DATABASE]
@@ -77,7 +84,9 @@ class DataRecordActioner(plugins.Actioner):
 class CopyActioner(plugins.Actioner):
     """Knows how to copy things to the clipboard"""
 
-    # pylint: disable=no-self-use
+    COPY_OBJ_ID = 'Copy Object ID'
+    COPY_OBJ_IDS = 'Copy Object IDs'
+    COPY = 'Copy'
 
     @property
     def name(self):
@@ -87,17 +96,28 @@ class CopyActioner(plugins.Actioner):
         actions = []
         if isinstance(obj, mincepy.DataRecord):
             actions.append("Copy Object ID")
-        elif hasattr(obj, '__str__'):
+        else:
+            try:
+                if any(isinstance(entry, mincepy.DataRecord) for entry in obj):
+                    actions.append(self.COPY_OBJ_IDS)
+            except TypeError:
+                # Not iterable
+                pass
+        if hasattr(obj, '__str__'):
             actions.append("Copy")
 
         return actions
 
-    def do(self, _action, obj, context: dict):
+    def do(self, action, obj, context: dict):
         clipboard = context.get(action_controllers.ActionContext.CLIPBOARD, None)
         if clipboard is not None:
-            if isinstance(obj, mincepy.DataRecord):
+            if action == self.COPY_OBJ_ID:
                 clipboard.setText(str(obj.obj_id))
-            else:
+            elif action == self.COPY_OBJ_IDS:
+                obj_ids = " ".join(
+                    str(entry.obj_id) for entry in obj if isinstance(entry, mincepy.DataRecord))
+                clipboard.setText(str(obj_ids))
+            elif action == self.COPY:
                 clipboard.setText(str(obj))
 
 

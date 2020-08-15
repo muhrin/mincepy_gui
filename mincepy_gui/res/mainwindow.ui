@@ -30,14 +30,14 @@
     <item>
      <layout class="QGridLayout" name="gridLayout">
       <item row="2" column="0">
-       <widget class="QLabel" name="label_2">
+       <widget class="QLabel" name="query_label">
         <property name="text">
          <string>Query: </string>
         </property>
        </widget>
       </item>
       <item row="1" column="0">
-       <widget class="QLabel" name="label">
+       <widget class="QLabel" name="type_label">
         <property name="lineWidth">
          <number>1</number>
         </property>
@@ -49,7 +49,7 @@
       <item row="1" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout_5">
         <property name="spacing">
-         <number>-1</number>
+         <number>7</number>
         </property>
         <item>
          <widget class="QComboBox" name="type_filter">
@@ -94,7 +94,7 @@
        </layout>
       </item>
       <item row="0" column="0">
-       <widget class="QLabel" name="label_3">
+       <widget class="QLabel" name="uri_label">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
           <horstretch>0</horstretch>
@@ -111,12 +111,22 @@
         <item>
          <widget class="QLineEdit" name="query_line"/>
         </item>
+        <item>
+         <widget class="QLabel" name="obj_id_label">
+          <property name="text">
+           <string>ObjIDs:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="obj_id_line"/>
+        </item>
        </layout>
       </item>
       <item row="0" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout_3">
         <property name="spacing">
-         <number>-1</number>
+         <number>7</number>
         </property>
         <property name="topMargin">
          <number>0</number>
@@ -143,6 +153,7 @@
            </sizepolicy>
           </property>
           <property name="font">
+           <font/>
           </property>
           <property name="text">
            <string>Connect</string>
@@ -176,7 +187,7 @@
      <x>0</x>
      <y>0</y>
      <width>884</width>
-     <height>22</height>
+     <height>27</height>
     </rect>
    </property>
   </widget>
