@@ -16,6 +16,11 @@
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
+  <property name="font">
+   <font>
+    <pointsize>10</pointsize>
+   </font>
+  </property>
   <property name="windowTitle">
    <string>MinceExplorer</string>
   </property>
@@ -25,6 +30,11 @@
      <horstretch>0</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>11</pointsize>
+    </font>
    </property>
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
@@ -153,7 +163,9 @@
            </sizepolicy>
           </property>
           <property name="font">
-           <font/>
+           <font>
+            <pointsize>11</pointsize>
+           </font>
           </property>
           <property name="text">
            <string>Connect</string>
@@ -175,8 +187,25 @@
       <property name="orientation">
        <enum>Qt::Vertical</enum>
       </property>
-      <widget class="QTableView" name="entries_table"/>
-      <widget class="QTreeView" name="entry_details"/>
+      <widget class="QTableView" name="entries_table">
+       <property name="alternatingRowColors">
+        <bool>true</bool>
+       </property>
+       <property name="showGrid">
+        <bool>false</bool>
+       </property>
+       <property name="wordWrap">
+        <bool>false</bool>
+       </property>
+       <attribute name="verticalHeaderDefaultSectionSize">
+        <number>30</number>
+       </attribute>
+      </widget>
+      <widget class="QTreeView" name="entry_details">
+       <property name="alternatingRowColors">
+        <bool>true</bool>
+       </property>
+      </widget>
      </widget>
     </item>
    </layout>
@@ -187,7 +216,7 @@
      <x>0</x>
      <y>0</y>
      <width>884</width>
-     <height>27</height>
+     <height>26</height>
     </rect>
    </property>
   </widget>
