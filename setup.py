@@ -27,7 +27,7 @@ setup(
     ],
     keywords='database schemaless nosql object-store gui',
     install_requires=[
-        'mincepy>=0.15.7',
+        'mincepy>=0.15.8',
         'PySide2',
         'pytray>=0.2.2',
         'stevedore',

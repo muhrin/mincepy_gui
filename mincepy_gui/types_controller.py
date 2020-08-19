@@ -52,10 +52,8 @@ class TypeFilterController(QtCore.QObject):
         self._updating.add_done_callback(on_done)
 
     def _gather_types(self, historian: mincepy.Historian):
-        results = historian.archive.find()
-        self._types = [None]
-        self._types.extend(list(set(result.type_id for result in results)))
-
+        """Function to get the types available in the database"""
+        self._types = [None] + list(historian.find_distinct(mincepy.TYPE_ID))
         type_names = self._get_type_names(self._types, historian)
 
         self._view.addItems(type_names)
