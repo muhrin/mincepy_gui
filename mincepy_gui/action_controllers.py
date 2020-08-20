@@ -30,6 +30,7 @@ CONTEXT_CLIPBOARD = ActionContext.CLIPBOARD
 
 
 class ActionController(QObject):
+    """Controller that is responsible for actions"""
 
     def __init__(self,
                  action_manager: extend.ActionManager,

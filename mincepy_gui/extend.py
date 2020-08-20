@@ -1,4 +1,5 @@
 import logging
+import operator
 from typing import MutableSequence, Sequence
 
 import stevedore
@@ -53,6 +54,7 @@ class ActionManager:
                 for action in possible_actions:
                     actions.append((action, actioner))
 
+        actions = sorted(actions, key=operator.itemgetter(0))
         return actions
 
     def get_actioners(self, type=None, name: str = None) -> Sequence[plugins.Actioner]:  # pylint: disable=redefined-builtin
