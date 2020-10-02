@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import functools
 from typing import Optional
 
@@ -40,7 +41,7 @@ class TypeFilterController(QtCore.QObject):
             return
 
         self._updating = self._executor(functools.partial(self._gather_types, historian),
-                                        "Gathering types",
+                                        'Gathering types',
                                         blocking=False)
 
         def on_done(fut):
@@ -53,7 +54,7 @@ class TypeFilterController(QtCore.QObject):
 
     def _gather_types(self, historian: mincepy.Historian):
         """Function to get the types available in the database"""
-        self._types = [None] + list(historian.find_distinct(mincepy.TYPE_ID))
+        self._types = [None] + list(historian.records.distinct(mincepy.TYPE_ID))
         type_names = self._get_type_names(self._types, historian)
 
         self._view.addItems(type_names)

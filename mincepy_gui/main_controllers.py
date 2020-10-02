@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from concurrent import futures
 from functools import partial
 import logging
@@ -51,17 +52,17 @@ class MainController(QtCore.QObject):
         self._status_bar.showMessage('Ready')
 
     def _load_plugins(self):
-        logger.info("Starting loading plugins")
+        logger.info('Starting loading plugins')
         self._action_manager.load_plugins()
         actioners = self._action_manager.get_actioners(name='copy-actioner')
         if actioners:
             # Somewhat arbitrarily just use the last one
             self._copier = partial(actioners[-1].do, 'copy', context=self._action_context)
 
-        logger.info("Finished loading plugins")
+        logger.info('Finished loading plugins')
 
     def _init_shortcuts(self):
-        ctrl_c = QtGui.QKeySequence("Ctrl+C")
+        ctrl_c = QtGui.QKeySequence('Ctrl+C')
         QtWidgets.QShortcut(ctrl_c, self._window.splitter, self._copy)
 
     def _create_controllers(self, window):
@@ -239,10 +240,10 @@ class MainController(QtCore.QObject):
 
         def execute_query():
             query_model = self._query_controller.query_model
-            results = historian.find_records(**query_model.get_query())
-            self._query_completed.emit(results, historian)
+            results = historian.records.find(**query_model.get_query())
+            self._query_completed.emit(iter(results), historian)
 
-        self._executor.execute(execute_query, "Querying...", blocking=False)
+        self._executor.execute(execute_query, 'Querying...', blocking=False)
 
     @QtCore.Slot(mincepy.Historian)
     def _handle_historian_created(self, historian: mincepy.Historian):

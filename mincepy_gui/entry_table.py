@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import itertools
 import logging
 from typing import Iterator, Any, List, Optional, Callable, Sequence
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class ConstEntryTable(QtCore.QAbstractTableModel):
     """Read-only view of the entries table model"""
-    DEFAULT_BATCH_SIZE = 128
+    DEFAULT_BATCH_SIZE = 64
 
     sort_requested = QtCore.Signal(str, QtCore.Qt.SortOrder)
 
@@ -84,7 +85,7 @@ class ConstEntryTable(QtCore.QAbstractTableModel):
         if not isinstance(col, cols.DataColumn):
             return
 
-        self.sort_requested.emit(".".join(col.path), order)
+        self.sort_requested.emit('.'.join(col.path), order)
 
 
 class EntryTableModel(ConstEntryTable):
@@ -291,7 +292,7 @@ class EntryTableController(QtCore.QObject):
         new_cols = []
         for new_state_key in state_keys:
             path = mincepy.STATE, new_state_key
-            new_cols.append(cols.DataColumn(".".join(path), path))
+            new_cols.append(cols.DataColumn('.'.join(path), path))
         self._entry_table.append_columns(*new_cols)
 
     @QtCore.Slot(QtCore.QModelIndex, int, int)

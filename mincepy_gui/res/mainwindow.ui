@@ -198,7 +198,7 @@
         <bool>false</bool>
        </property>
        <attribute name="verticalHeaderDefaultSectionSize">
-        <number>30</number>
+        <number>32</number>
        </attribute>
       </widget>
       <widget class="QTreeView" name="entry_details">

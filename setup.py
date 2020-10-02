@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup
 
-__author__ = "Martin Uhrin"
-__license__ = "GPLv3 and MIT"
-__contributors__ = "Sonia Collaud"
+__author__ = 'Martin Uhrin'
+__license__ = 'GPLv3 and MIT'
+__contributors__ = 'Sonia Collaud'
 
 about = {}
 with open('mincepy_gui/version.py') as f:
@@ -12,7 +12,7 @@ with open('mincepy_gui/version.py') as f:
 setup(
     name='mincepy-gui',
     version=about['__version__'],
-    description="GUI for navigating your mincepy database visually!",
+    description='GUI for navigating your mincepy database visually!',
     long_description=open('README.rst').read(),
     url='https://github.com/muhrin/mincepy_gui.git',
     author='Martin Uhrin',
@@ -27,7 +27,7 @@ setup(
     ],
     keywords='database schemaless nosql object-store gui',
     install_requires=[
-        'mincepy>=0.15.8',
+        'mincepy>=0.15.16',
         'PySide2',
         'pytray>=0.2.2',
         'stevedore',

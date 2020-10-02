@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Module for display details about a database entry"""
 from abc import ABCMeta, abstractmethod
 import operator
@@ -233,7 +234,7 @@ class EntryDetails(QtCore.QAbstractItemModel):
             try:
                 child = build_from[row]
             except Exception as exc:  # pylint: disable=broad-except
-                child = "Error getting child: {}".format(exc)
+                child = 'Error getting child: {}'.format(exc)
         elif isinstance(build_from, Mapping):
             entry = sorted(build_from.items(), key=operator.itemgetter(0))[row]
             key, child = str(entry[0]), entry[1]
@@ -328,11 +329,13 @@ class EntryDetailsController(QtCore.QObject):
         obj = snapshot = None
         if self._historian is not None:
             try:
-                obj = self._historian.load(record.obj_id)
+                # obj = self._historian.load(record.obj_id)
+                obj = record.load()
             except TypeError:
                 pass
             try:
-                snapshot = self._historian.load_snapshot(record.snapshot_id)
+                # snapshot = self._historian.load(record.snapshot_id)
+                snapshot = record.load_snapshot()
             except TypeError:
                 pass
 
